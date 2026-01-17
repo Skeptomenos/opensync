@@ -186,9 +186,9 @@ function SessionItem({
               {(session.totalTokens / 1000).toFixed(1)}k
             </span>
             {session.isPublic ? (
-              <Globe className="h-3 w-3 text-emerald-500" title="Public" />
+              <span title="Public"><Globe className="h-3 w-3 text-emerald-500" /></span>
             ) : (
-              <Lock className="h-3 w-3" title="Private" />
+              <span title="Private"><Lock className="h-3 w-3" /></span>
             )}
           </div>
         </div>

@@ -1,14 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useAuth } from "../lib/auth";
 import { Header } from "../components/Header";
 import { Sidebar } from "../components/Sidebar";
 import { SessionViewer } from "../components/SessionViewer";
 import type { Id } from "../../convex/_generated/dataModel";
 
 export function DashboardPage() {
-  const { user } = useAuth();
   const [selectedSessionId, setSelectedSessionId] = useState<Id<"sessions"> | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);

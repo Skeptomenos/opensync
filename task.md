@@ -21,6 +21,7 @@ OpenSync supports two AI coding tools: **OpenCode** and **Claude Code**.
 - [x] Markdown export
 - [x] README and documentation
 - [x] opencode-sync-plugin published to npm ([npmjs.com/package/opencode-sync-plugin](https://www.npmjs.com/package/opencode-sync-plugin))
+- [x] Fixed Netlify build errors (vite-env.d.ts, @types/node, tsconfig types)
 
 ## In Progress
 

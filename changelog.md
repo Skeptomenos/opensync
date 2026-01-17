@@ -10,6 +10,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Published opencode-sync-plugin to npm: [npmjs.com/package/opencode-sync-plugin](https://www.npmjs.com/package/opencode-sync-plugin)
 
+### Fixed
+
+- Fixed Netlify build errors for TypeScript compilation
+- Added `src/vite-env.d.ts` for Vite client types (import.meta.env)
+- Added `@types/node` to devDependencies for Convex process.env types
+- Updated tsconfig.json with vite/client and node types
+- Fixed unused variable error in Dashboard.tsx
+- Fixed invalid title prop on Lucide icons in Sidebar.tsx
+
 ### Changed
 
 - Updated plugin authentication to use API Keys (`osk_*`) instead of WorkOS OAuth

@@ -43,6 +43,7 @@ React frontend application.
 | `main.tsx` | App entry point with providers (Convex, AuthKit, Router) |
 | `App.tsx` | Route definitions and protected route wrapper |
 | `index.css` | Global styles and Tailwind imports |
+| `vite-env.d.ts` | Vite client type declarations for import.meta.env |
 
 ### src/pages/
 
