@@ -25,19 +25,42 @@ export const upsert = internalMutation({
   },
   returns: v.id("messages"),
   handler: async (ctx, args) => {
+    const now = Date.now();
+
     // Find session
-    const session = await ctx.db
+    let session = await ctx.db
       .query("sessions")
       .withIndex("by_user_external", (q) =>
         q.eq("userId", args.userId).eq("externalId", args.sessionExternalId)
       )
       .first();
 
+    // Auto-create session if it doesn't exist (handles out-of-order sync)
     if (!session) {
-      throw new Error(`Session not found: ${args.sessionExternalId}`);
+      const sessionId = await ctx.db.insert("sessions", {
+        userId: args.userId,
+        externalId: args.sessionExternalId,
+        title: undefined,
+        projectPath: undefined,
+        projectName: undefined,
+        model: args.model,
+        provider: undefined,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        cost: 0,
+        durationMs: undefined,
+        isPublic: false,
+        searchableText: undefined,
+        messageCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+      session = await ctx.db.get(sessionId);
+      if (!session) {
+        throw new Error(`Failed to create session: ${args.sessionExternalId}`);
+      }
     }
-
-    const now = Date.now();
 
     // Check if message exists
     const existing = await ctx.db

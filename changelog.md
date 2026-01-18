@@ -17,6 +17,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Fixed "Session not found" error when messages sync before their sessions (auto-creates session)
 - Fixed Netlify build errors for TypeScript compilation
 - Added `src/vite-env.d.ts` for Vite client types (import.meta.env)
 - Added `@types/node` to devDependencies for Convex process.env types
