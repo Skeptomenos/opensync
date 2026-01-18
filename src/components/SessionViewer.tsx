@@ -39,7 +39,7 @@ interface SessionViewerProps {
   };
   messages: Array<{
     _id: Id<"messages">;
-    role: "user" | "assistant" | "system";
+    role: "user" | "assistant" | "system" | "unknown";
     textContent?: string;
     createdAt: number;
     parts: Array<{ type: string; content: any }>;
