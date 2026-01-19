@@ -183,7 +183,12 @@ function MessageBlock({ message, theme }: { message: any; theme: "dark" | "tan" 
         >
           {showFallback ? (
             // Fallback: render textContent when parts are empty
-            <div className={cn("prose prose-sm max-w-none", theme === "dark" ? "prose-invert" : "")}>
+            <div className={cn(
+              "prose prose-sm max-w-none",
+              theme === "dark" 
+                ? "prose-invert" 
+                : "prose-neutral text-[#1a1a1a] prose-headings:text-[#1a1a1a] prose-p:text-[#1a1a1a] prose-strong:text-[#1a1a1a] prose-code:text-[#1a1a1a]"
+            )}>
               <ReactMarkdown
                 components={{
                   code({ node, inline, className, children, ...props }: any) {
@@ -198,7 +203,7 @@ function MessageBlock({ message, theme }: { message: any; theme: "dark" | "tan" 
                         {String(children).replace(/\n$/, "")}
                       </SyntaxHighlighter>
                     ) : (
-                      <code className={className} {...props}>
+                      <code className={cn(className, theme === "tan" && "bg-[#e6e4e1] text-[#1a1a1a]")} {...props}>
                         {children}
                       </code>
                     );
@@ -233,7 +238,12 @@ function PartRenderer({ part, theme }: { part: any; theme: "dark" | "tan" }) {
     if (!textContent) return null;
     
     return (
-      <div className={cn("prose prose-sm max-w-none", theme === "dark" ? "prose-invert" : "")}>
+      <div className={cn(
+        "prose prose-sm max-w-none",
+        theme === "dark" 
+          ? "prose-invert" 
+          : "prose-neutral text-[#1a1a1a] prose-headings:text-[#1a1a1a] prose-p:text-[#1a1a1a] prose-strong:text-[#1a1a1a] prose-code:text-[#1a1a1a]"
+      )}>
         <ReactMarkdown
           components={{
             code({ node, inline, className, children, ...props }: any) {
@@ -248,7 +258,7 @@ function PartRenderer({ part, theme }: { part: any; theme: "dark" | "tan" }) {
                   {String(children).replace(/\n$/, "")}
                 </SyntaxHighlighter>
               ) : (
-                <code className={className} {...props}>
+                <code className={cn(className, theme === "tan" && "bg-[#e6e4e1] text-[#1a1a1a]")} {...props}>
                   {children}
                 </code>
               );
