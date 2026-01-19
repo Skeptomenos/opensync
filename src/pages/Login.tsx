@@ -1,7 +1,7 @@
 import { useAuth } from "../lib/auth";
 import { useAuth as useAuthKit } from "@workos-inc/authkit-react";
 import { Navigate } from "react-router-dom";
-import { Loader2, Sun, Moon } from "lucide-react";
+import { Loader2, Sun, Moon, Github } from "lucide-react";
 import { useTheme } from "../lib/theme";
 
 const ASCII_LOGO = `
@@ -12,12 +12,12 @@ const ASCII_LOGO = `
 ╚██████╔╝██║     ███████╗██║ ╚████║███████║   ██║   ██║ ╚████║╚██████╗
  ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═══╝ ╚═════╝`;
 
-// Mock session data for the dashboard preview
+// Mock session data for the dashboard preview with source badges
 const MOCK_SESSIONS = [
-  { id: "01", title: "auth-flow-setup", time: "2m ago", tokens: "1.2k" },
-  { id: "02", title: "api-refactor", time: "15m ago", tokens: "3.4k" },
-  { id: "03", title: "search-component", time: "1h ago", tokens: "892" },
-  { id: "04", title: "db-migration", time: "3h ago", tokens: "2.1k" },
+  { id: "01", title: "auth-flow-setup", time: "2m ago", tokens: "1.2k", source: "cc" as const },
+  { id: "02", title: "api-refactor", time: "15m ago", tokens: "3.4k", source: "oc" as const },
+  { id: "03", title: "search-component", time: "1h ago", tokens: "892", source: "cc" as const },
+  { id: "04", title: "db-migration", time: "3h ago", tokens: "2.1k", source: "oc" as const },
 ];
 
 // Small theme switcher component for footer
@@ -224,6 +224,27 @@ export function LoginPage() {
                   <span className={`ml-2 text-xs ${isDark ? "text-zinc-500" : "text-[#8b7355]"}`}>
                     opensync dashboard
                   </span>
+                  {/* View tabs */}
+                  <div className={`ml-auto flex items-center gap-1 rounded p-0.5 ${
+                    isDark ? "bg-zinc-800/50" : "bg-[#ebe9e6]"
+                  }`}>
+                    {["overview", "sessions", "evals", "analytics"].map((tab, i) => (
+                      <span
+                        key={tab}
+                        className={`px-2 py-0.5 text-[9px] rounded capitalize ${
+                          i === 0
+                            ? isDark
+                              ? "bg-zinc-700 text-zinc-200"
+                              : "bg-white text-[#1a1a1a]"
+                            : isDark
+                              ? "text-zinc-500"
+                              : "text-[#8b7355]"
+                        }`}
+                      >
+                        {tab}
+                      </span>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Dashboard content */}
@@ -249,8 +270,15 @@ export function LoginPage() {
                                 : "text-[#6b6b6b] hover:bg-[#ebe9e6]"
                           }`}
                         >
-                          <div className="flex items-center gap-2">
-                            <span className={isDark ? "text-zinc-600" : "text-[#8b7355]"}>{session.id}</span>
+                          <div className="flex items-center gap-1.5">
+                            {/* Source badge */}
+                            <span className={`shrink-0 px-1 py-0.5 rounded text-[8px] font-medium uppercase ${
+                              session.source === "cc"
+                                ? "bg-amber-500/15 text-amber-500"
+                                : "bg-blue-500/15 text-blue-400"
+                            }`}>
+                              {session.source}
+                            </span>
                             <span className="truncate">{session.title}</span>
                           </div>
                         </div>
@@ -299,8 +327,8 @@ export function LoginPage() {
                       </div>
                     </div>
 
-                    {/* Stats row */}
-                    <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                    {/* Stats row - 4 stats matching dashboard */}
+                    <div className="mt-4 grid grid-cols-4 gap-2 text-center">
                       <div className={`rounded p-2 ${isDark ? "bg-zinc-800/50" : "bg-[#ebe9e6]"}`}>
                         <p className={`text-lg font-medium ${isDark ? "text-zinc-300" : "text-[#1a1a1a]"}`}>24</p>
                         <p className={`text-[10px] ${isDark ? "text-zinc-600" : "text-[#8b7355]"}`}>sessions</p>
@@ -312,8 +340,12 @@ export function LoginPage() {
                         <p className={`text-[10px] ${isDark ? "text-zinc-600" : "text-[#8b7355]"}`}>tokens</p>
                       </div>
                       <div className={`rounded p-2 ${isDark ? "bg-zinc-800/50" : "bg-[#ebe9e6]"}`}>
-                        <p className={`text-lg font-medium ${isDark ? "text-zinc-300" : "text-[#1a1a1a]"}`}>3</p>
-                        <p className={`text-[10px] ${isDark ? "text-zinc-600" : "text-[#8b7355]"}`}>shared</p>
+                        <p className={`text-lg font-medium ${isDark ? "text-zinc-300" : "text-[#1a1a1a]"}`}>$1.24</p>
+                        <p className={`text-[10px] ${isDark ? "text-zinc-600" : "text-[#8b7355]"}`}>cost</p>
+                      </div>
+                      <div className={`rounded p-2 ${isDark ? "bg-zinc-800/50" : "bg-[#ebe9e6]"}`}>
+                        <p className={`text-lg font-medium ${isDark ? "text-zinc-300" : "text-[#1a1a1a]"}`}>2h 14m</p>
+                        <p className={`text-[10px] ${isDark ? "text-zinc-600" : "text-[#8b7355]"}`}>duration</p>
                       </div>
                     </div>
                   </div>
@@ -410,7 +442,7 @@ export function LoginPage() {
                 <img
                   src="/convex.svg"
                   alt="Convex"
-                  className={`h-4 w-auto ${isDark ? "invert" : ""}`}
+                  className={`h-2 w-auto ${isDark ? "invert" : ""}`}
                 />
               </a>
               <span className={isDark ? "text-zinc-500" : "text-[#8b7355]"}>+</span>
@@ -424,7 +456,7 @@ export function LoginPage() {
                 <img
                   src="/workos.svg"
                   alt="WorkOS"
-                  className={`h-5 w-auto ${isDark ? "invert" : ""}`}
+                  className={`h-3 w-auto ${isDark ? "invert" : ""}`}
                 />
               </a>
               <span className={isDark ? "text-zinc-500" : "text-[#8b7355]"}>+</span>
@@ -438,10 +470,27 @@ export function LoginPage() {
                 <img
                   src="/netlify-logo.svg"
                   alt="Netlify"
-                  className={`h-6 w-auto ${isDark ? "" : "invert"}`}
+                  className={`h-5 w-auto ${isDark ? "" : "invert"}`}
                 />
               </a>
             </div>
+          </div>
+
+          {/* GitHub link - positioned in bottom left */}
+          <div className="fixed bottom-4 left-4">
+            <a
+              href="https://github.com/waynesutton/opensync"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`p-1.5 rounded-md transition-colors ${
+                isDark
+                  ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                  : "text-[#6b6b6b] hover:text-[#1a1a1a] hover:bg-[#ebe9e6]"
+              }`}
+              title="View on GitHub"
+            >
+              <Github className="h-4 w-4" />
+            </a>
           </div>
 
           {/* Theme switcher - positioned in bottom right */}

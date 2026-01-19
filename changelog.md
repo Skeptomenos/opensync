@@ -11,8 +11,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Removed search bar from Dashboard header, added search icon to Context link for cleaner UX
 - Search functionality consolidated into dedicated Context page (/context)
 - Login page now supports tan mode theme with icon-only theme switcher in bottom right footer
+- Login page mockup updated: view tabs (overview/sessions/evals/analytics), 4 stats (sessions/tokens/cost/duration), OC/CC source badges on sessions
 
 ### Added
+
+- GitHub icon link in Login page footer (bottom left, links to opensync repo)
 
 - Setup banner on Dashboard Overview for new users with no synced data
 - Banner links to opencode-sync-plugin and claude-code-sync repos with npm install commands

@@ -93,6 +93,12 @@ None currently.
 
 ## Recently Completed
 
+- [x] Login page mockup updated to match Dashboard features
+  - View tabs row (overview/sessions/evals/analytics)
+  - 4 stats instead of 3 (sessions, tokens, cost, duration)
+  - OC/CC source badges on session items
+  - GitHub icon link in footer (bottom left)
+
 - [x] Setup banner for new users on Dashboard Overview
   - Shows when totalSessions === 0 with links to both sync plugins
   - Two plugin cards: opencode-sync-plugin (OC) and claude-code-sync (CC)

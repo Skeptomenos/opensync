@@ -52,7 +52,7 @@ React frontend application.
 
 | File | Description |
 |------|-------------|
-| `Login.tsx` | Login page with WorkOS AuthKit integration, privacy messaging, getting started section with plugin links, tan mode theme support with footer theme switcher |
+| `Login.tsx` | Login page with WorkOS AuthKit integration, privacy messaging, getting started section with plugin links, tan mode theme support with footer theme switcher, GitHub icon link, updated mockup with view tabs and OC/CC source badges |
 | `Dashboard.tsx` | Main dashboard with source filter dropdown, source badges (CC/OC), eval toggle button, Context link with search icon, setup banner for new users with plugin install links, and four views: Overview (stats, charts, setup banner), Sessions (filterable list with source badges), Evals (eval-ready sessions with export modal), Analytics (detailed breakdowns) |
 | `Settings.tsx` | Tabbed settings: API Access (keys, endpoints), Profile (account info, Danger Zone with delete data/account options) |
 | `Docs.tsx` | Interactive API documentation page |
