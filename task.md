@@ -93,6 +93,13 @@ None currently.
 
 ## Recently Completed
 
+- [x] Login page feature list improvements
+  - Updated tagline to mention eval datasets
+  - Added Tag feature bullet for eval organization
+  - Improved keyword colors for better dark mode contrast
+  - Improved trust message and plugin link readability
+  - Hidden scrollbar added to Docs sidebar and main content
+
 - [x] Comprehensive documentation page update (Docs.tsx)
   - Added "Use Hosted Version" section as first section
   - Features section with Sync, Search, Private, Export, Delete, API

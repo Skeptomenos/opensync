@@ -97,7 +97,7 @@ export function LoginPage() {
                 Dashboards for OpenCode and Claude coding sessions
               </h2>
               <p className={`mt-2 text-sm sm:text-base ${isDark ? "text-zinc-300" : "text-[#1a1a1a]"}`}>
-                Cloud-synced dashboards that track session activity, tool usage, and token spend across projects.
+                Cloud-synced dashboards that track session activity, tool usage, and token spend. Build eval datasets across projects.
               </p>
 
               {/* Feature list - colors from VSCode TypeScript theme */}
@@ -107,16 +107,18 @@ export function LoginPage() {
                   to cloud
                 </p>
                 <p>
-                  <span className={`font-mono ${isDark ? "text-[#dcdcaa]" : "text-[#8b7355]"}`}>Search</span> with full text
+                  <span className={`font-mono ${isDark ? "text-[#EBC101]" : "text-[#8b7355]"}`}>Search</span> with full text
                   and semantic lookup
                 </p>
                 <p>
-                  <span className={`font-mono ${isDark ? "text-[#ce9178]" : "text-[#a05d3b]"}`}>Private</span> your data stays
+                  <span className={`font-mono ${isDark ? "text-[#EB1301]" : "text-[#a05d3b]"}`}>Private</span> your data stays
                   in your account. 
                 </p>
                 <p>
-                  <span className={`font-mono ${isDark ? "text-[#9cdcfe]" : "text-[#3d7ea6]"}`}>Export</span> sessions for
-                  evals in DeepEval, OpenAI, or plain text
+                  <span className={`font-mono ${isDark ? "text-[#A3DD2E]" : "text-[#a05d3b]"}`}>Tag</span> sessions with custom labels for eval organization
+                </p>
+                <p>
+                  <span className={`font-mono ${isDark ? "text-[#9cdcfe]" : "text-[#3d7ea6]"}`}>Export</span> sessions for evals in DeepEval, OpenAI, or plain text
                 </p>
                 <p>
                   <span className="text-[#EB5601] font-mono">Delete</span> your data, your control, delete your sessions anytime.
@@ -200,7 +202,7 @@ export function LoginPage() {
                   ? "border-zinc-800 bg-zinc-900/50" 
                   : "border-[#e6e4e1] bg-[#f5f3f0]"
               }`}>
-                <p className={`text-xs ${isDark ? "text-zinc-400" : "text-[#6b6b6b]"}`}>
+                <p className={`text-xs ${isDark ? "text-zinc-100" : "text-[#6b6b6b]"}`}>
                   Your sessions stay private. Unsync or delete your data from the database anytime.
                 </p>
               </div>
@@ -377,7 +379,7 @@ export function LoginPage() {
                   >
                     <span className={`font-mono text-xs ${
                       isDark 
-                        ? "text-zinc-400 group-hover:text-zinc-300" 
+                        ? "text-zinc-100 group-hover:text-zinc-300" 
                         : "text-[#6b6b6b] group-hover:text-[#1a1a1a]"
                     }`}>
                       claude-code-sync
@@ -402,7 +404,7 @@ export function LoginPage() {
                   >
                     <span className={`font-mono text-xs ${
                       isDark 
-                        ? "text-zinc-400 group-hover:text-zinc-300" 
+                        ? "text-zinc-100 group-hover:text-zinc-300" 
                         : "text-[#6b6b6b] group-hover:text-[#1a1a1a]"
                     }`}>
                       opencode-sync-plugin

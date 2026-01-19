@@ -12,6 +12,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Search functionality consolidated into dedicated Context page (/context)
 - Login page now supports tan mode theme with icon-only theme switcher in bottom right footer
 - Login page mockup updated: view tabs (overview/sessions/evals/analytics), 4 stats (sessions/tokens/cost/duration), OC/CC source badges on sessions
+- Login page tagline now mentions eval datasets: "Build eval datasets across projects"
+- Login page feature list updated: added Tag feature for eval organization, improved keyword colors for better contrast in dark mode
+- Trust message and plugin link text improved for readability in dark mode (zinc-400 to zinc-100)
+- Docs page sidebar and main content now use hidden scrollbar for cleaner UI
 
 ### Added
 

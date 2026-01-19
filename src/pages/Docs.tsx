@@ -324,7 +324,7 @@ function DocsSidebar({
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+      <nav className="flex-1 overflow-y-auto scrollbar-hide py-4 px-3 space-y-1">
         {docSections.map((section) => {
           const isActive =
             activeSection === section.id ||
@@ -1042,7 +1042,7 @@ npm install
         <div className="flex-1 flex">
           <main
             ref={mainRef}
-            className="flex-1 overflow-y-auto px-4 lg:px-8 py-8 max-w-4xl"
+            className="flex-1 overflow-y-auto scrollbar-hide px-4 lg:px-8 py-8 max-w-4xl"
           >
             {/* Hero */}
             <div className="mb-12">
