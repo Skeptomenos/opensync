@@ -14,6 +14,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Dashboard footer with GitHub repo link and "powered by convex" attribution
 - CSV export for all user session data (exportAllDataCSV query)
 - Export CSV button in sessions view next to list/timeline toggle
+- Tokens/Cost chart type toggle in Consumption Breakdown
+- Prompt/Completion token breakdown in usage table
 - Daily/Weekly/Monthly view toggle for consumption breakdown
 - Cumulative mode toggle for usage visualization
 - Project and model filters in consumption breakdown
@@ -39,6 +41,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fixed Tokens/Cost/Duration table header alignment in sessions view
 - Fixed markdown download with sanitized filenames and date timestamps
 - Added loading state to download button when markdown is being fetched
+- Fixed markdown export to include message content from parts and textContent fallback
+- Fixed Consumption Breakdown filters to actually filter model/project stats
 
 ### Changed
 

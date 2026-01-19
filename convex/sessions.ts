@@ -252,14 +252,36 @@ export const getMarkdown = query({
       const role = message.role === "user" ? "## User" : "## Assistant";
       md += `${role}\n\n`;
 
-      for (const part of parts.sort((a, b) => a.order - b.order)) {
-        if (part.type === "text") {
-          md += `${part.content}\n\n`;
-        } else if (part.type === "tool-call") {
-          md += `**Tool: ${part.content.name}**\n\`\`\`json\n${JSON.stringify(part.content.args, null, 2)}\n\`\`\`\n\n`;
-        } else if (part.type === "tool-result") {
-          md += `**Result:**\n\`\`\`\n${part.content.result}\n\`\`\`\n\n`;
+      // Check if we have parts with content
+      const sortedParts = parts.sort((a, b) => a.order - b.order);
+      let hasContent = false;
+
+      for (const part of sortedParts) {
+        if (part.type === "text" && part.content) {
+          // Handle both string content and object with text property
+          const textContent = typeof part.content === "string" 
+            ? part.content 
+            : part.content?.text || part.content?.content || "";
+          if (textContent) {
+            md += `${textContent}\n\n`;
+            hasContent = true;
+          }
+        } else if (part.type === "tool-call" && part.content) {
+          const toolName = part.content.name || part.content.toolName || "Unknown Tool";
+          const toolArgs = part.content.args || part.content.arguments || part.content.input || {};
+          md += `**Tool: ${toolName}**\n\`\`\`json\n${JSON.stringify(toolArgs, null, 2)}\n\`\`\`\n\n`;
+          hasContent = true;
+        } else if (part.type === "tool-result" && part.content) {
+          const result = part.content.result || part.content.output || part.content;
+          const resultStr = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+          md += `**Result:**\n\`\`\`\n${resultStr}\n\`\`\`\n\n`;
+          hasContent = true;
         }
+      }
+
+      // Fallback: if no parts content, use message.textContent
+      if (!hasContent && message.textContent) {
+        md += `${message.textContent}\n\n`;
       }
     }
 

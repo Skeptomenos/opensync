@@ -10,7 +10,6 @@ OpenSync supports two AI coding tools: **OpenCode** and **Claude Code**.
 - [ ] Add API rename and Claude API config
 - [ ] Add claude-code-sync plugin
 - [ ] Notifications UI match existing design system
-- [ ] Smaller footer design
 
 ## Completed
 
@@ -62,6 +61,10 @@ OpenSync supports two AI coding tools: **OpenCode** and **Claude Code**.
 - [x] Dashboard footer with GitHub repo link and "powered by convex" attribution
 - [x] CSV export for all user session data (exportAllDataCSV Convex query)
 - [x] Export CSV button in sessions view toolbar next to list/timeline toggle
+- [x] Fixed Consumption Breakdown filters (project/model selection now filters data)
+- [x] Added Tokens/Cost toggle for chart visualization in Usage Overview
+- [x] Added prompt/completion token breakdown to usage table
+- [x] Fixed markdown export to include message content (textContent fallback)
 - [x] Privacy messaging on login page ("Private - your data stays in your account")
 - [x] Removed EnvStatus debug component from login footer
 

@@ -629,18 +629,24 @@ interface ConsumptionBreakdownProps {
   modelStats: Array<{
     model: string;
     sessions: number;
+    promptTokens: number;
+    completionTokens: number;
     totalTokens: number;
     cost: number;
   }>;
   projectStats: Array<{
     project: string;
     sessions: number;
+    promptTokens: number;
+    completionTokens: number;
     totalTokens: number;
     cost: number;
   }>;
   summaryStats: {
     totalCost: number;
     totalTokens: number;
+    promptTokens: number;
+    completionTokens: number;
     totalSessions: number;
   } | null;
   theme?: "dark" | "tan";
@@ -660,23 +666,75 @@ export function ConsumptionBreakdown({
   const [isCumulative, setIsCumulative] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string | undefined>();
   const [selectedModel, setSelectedModel] = useState<string | undefined>();
+  const [chartType, setChartType] = useState<"tokens" | "cost">("tokens");
 
   // Color palette for stacked bars
   const colors = isDark
     ? ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"]
     : ["#EB5601", "#8b7355", "#d14a01", "#6b6b6b", "#a67c52", "#4a4a4a", "#c9744a", "#5c5c5c"];
 
+  // Filter model/project stats based on selection
+  const filteredModelStats = useMemo(() => {
+    if (!selectedModel) return modelStats;
+    return modelStats.filter((m) => m.model === selectedModel);
+  }, [modelStats, selectedModel]);
+
+  const filteredProjectStats = useMemo(() => {
+    if (!selectedProject) return projectStats;
+    return projectStats.filter((p) => p.project === selectedProject);
+  }, [projectStats, selectedProject]);
+
+  // Calculate filtered summary based on selections
+  const filteredSummary = useMemo(() => {
+    // If both filters applied, use the intersection logic
+    if (selectedModel && selectedProject) {
+      // Use the more restrictive filter (model stats)
+      const model = modelStats.find((m) => m.model === selectedModel);
+      if (model) {
+        return {
+          totalTokens: model.totalTokens,
+          promptTokens: model.promptTokens || 0,
+          completionTokens: model.completionTokens || 0,
+          totalCost: model.cost,
+          sessions: model.sessions,
+        };
+      }
+    }
+    if (selectedModel) {
+      const model = modelStats.find((m) => m.model === selectedModel);
+      if (model) {
+        return {
+          totalTokens: model.totalTokens,
+          promptTokens: model.promptTokens || 0,
+          completionTokens: model.completionTokens || 0,
+          totalCost: model.cost,
+          sessions: model.sessions,
+        };
+      }
+    }
+    if (selectedProject) {
+      const project = projectStats.find((p) => p.project === selectedProject);
+      if (project) {
+        return {
+          totalTokens: project.totalTokens,
+          promptTokens: project.promptTokens || 0,
+          completionTokens: project.completionTokens || 0,
+          totalCost: project.cost,
+          sessions: project.sessions,
+        };
+      }
+    }
+    return summaryStats;
+  }, [summaryStats, modelStats, projectStats, selectedModel, selectedProject]);
+
   // Process data based on view mode
   const processedData = useMemo(() => {
     if (dailyStats.length === 0) return [];
 
-    // Filter by selected project/model if applicable
-    let filtered = [...dailyStats];
-    
     // Group by period
     const grouped: Record<string, typeof dailyStats> = {};
     
-    filtered.forEach((d) => {
+    dailyStats.forEach((d) => {
       let key = d.date;
       if (viewMode === "weekly") {
         const date = new Date(d.date);
@@ -754,21 +812,45 @@ export function ConsumptionBreakdown({
     return date.toLocaleDateString("en", { month: "short", day: "numeric" });
   };
 
-  // Build chart data with model/project segments
+  // Build chart data - either tokens or cost, filtered by selection
   const chartData = useMemo(() => {
-    // Use cost breakdown by model for each period
-    return processedData.slice(-30).map((d) => ({
+    const statsToUse = selectedProject ? filteredProjectStats : filteredModelStats;
+    const dataSlice = processedData.slice(-30);
+    
+    if (chartType === "tokens") {
+      // Token usage chart - show prompt vs completion tokens
+      return dataSlice.map((d) => ({
+        label: formatPeriodLabel(d.period),
+        segments: [
+          {
+            label: "Prompt Tokens",
+            value: d.promptTokens,
+            color: isDark ? "#3b82f6" : "#EB5601",
+          },
+          {
+            label: "Completion Tokens",
+            value: d.completionTokens,
+            color: isDark ? "#22c55e" : "#8b7355",
+          },
+        ],
+      }));
+    }
+    
+    // Cost breakdown by model/project
+    return dataSlice.map((d) => ({
       label: formatPeriodLabel(d.period),
-      segments: modelStats.slice(0, 6).map((m, i) => ({
-        label: m.model,
-        // Distribute the period's cost proportionally by model
-        value: summaryStats?.totalCost 
-          ? (d.cost * m.cost / summaryStats.totalCost)
-          : d.cost / modelStats.length,
-        color: colors[i % colors.length],
-      })),
+      segments: statsToUse.slice(0, 6).map((s, i) => {
+        const key = "model" in s ? s.model : s.project;
+        const statCost = s.cost;
+        const totalStat = filteredSummary?.totalCost || summaryStats?.totalCost || 1;
+        return {
+          label: key,
+          value: totalStat > 0 ? (d.cost * statCost / totalStat) : d.cost / statsToUse.length,
+          color: colors[i % colors.length],
+        };
+      }),
     }));
-  }, [processedData, modelStats, summaryStats, colors]);
+  }, [processedData, filteredModelStats, filteredProjectStats, selectedProject, chartType, filteredSummary, summaryStats, colors, isDark]);
 
   // Date range display
   const dateRange = useMemo(() => {
@@ -779,10 +861,14 @@ export function ConsumptionBreakdown({
     return `${start.toLocaleDateString("en", { month: "short", day: "numeric", year: "2-digit" })} - ${end.toLocaleDateString("en", { month: "short", day: "numeric", year: "2-digit" })}`;
   }, [dailyStats]);
 
-  // Calculate usage metrics
-  const includedCredit = 20.0; // Example included credit
-  const usedCredit = Math.min(summaryStats?.totalCost || 0, includedCredit);
-  const onDemandCharges = Math.max((summaryStats?.totalCost || 0) - includedCredit, 0);
+  // Calculate usage metrics using filtered summary
+  const includedCredit = 20.0;
+  const totalCost = filteredSummary?.totalCost || 0;
+  const usedCredit = Math.min(totalCost, includedCredit);
+  const onDemandCharges = Math.max(totalCost - includedCredit, 0);
+
+  // Stats to display in table based on selection
+  const tableStats = selectedProject ? filteredProjectStats : filteredModelStats;
 
   return (
     <div className={cn(
@@ -857,10 +943,41 @@ export function ConsumptionBreakdown({
 
       {/* Chart section */}
       <div className="px-4 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className={cn("text-xs font-normal", isDark ? "text-zinc-500" : "text-[#6b6b6b]")}>
-            Consumption Breakdown
-          </h4>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <h4 className={cn("text-xs font-normal", isDark ? "text-zinc-500" : "text-[#6b6b6b]")}>
+              Consumption Breakdown
+            </h4>
+            
+            {/* Chart type toggle */}
+            <div className={cn(
+              "flex items-center rounded-md p-0.5 border",
+              isDark ? "bg-zinc-800/50 border-zinc-700" : "bg-[#ebe9e6] border-[#e6e4e1]"
+            )}>
+              <button
+                onClick={() => setChartType("tokens")}
+                className={cn(
+                  "px-2 py-1 text-xs rounded transition-colors",
+                  chartType === "tokens"
+                    ? isDark ? "bg-zinc-700 text-zinc-100" : "bg-white text-[#1a1a1a] shadow-sm"
+                    : isDark ? "text-zinc-500 hover:text-zinc-300" : "text-[#6b6b6b] hover:text-[#1a1a1a]"
+                )}
+              >
+                Tokens
+              </button>
+              <button
+                onClick={() => setChartType("cost")}
+                className={cn(
+                  "px-2 py-1 text-xs rounded transition-colors",
+                  chartType === "cost"
+                    ? isDark ? "bg-zinc-700 text-zinc-100" : "bg-white text-[#1a1a1a] shadow-sm"
+                    : isDark ? "text-zinc-500 hover:text-zinc-300" : "text-[#6b6b6b] hover:text-[#1a1a1a]"
+                )}
+              >
+                Cost
+              </button>
+            </div>
+          </div>
           
           <div className="flex items-center gap-3">
             {/* View mode toggle */}
@@ -873,7 +990,7 @@ export function ConsumptionBreakdown({
                   key={mode}
                   onClick={() => setViewMode(mode)}
                   className={cn(
-                    "px-3 py-1 text-xs rounded transition-colors capitalize",
+                    "px-2 py-1 text-xs rounded transition-colors capitalize",
                     viewMode === mode
                       ? isDark ? "bg-zinc-700 text-zinc-100" : "bg-white text-[#1a1a1a] shadow-sm"
                       : isDark ? "text-zinc-500 hover:text-zinc-300" : "text-[#6b6b6b] hover:text-[#1a1a1a]"
@@ -907,21 +1024,34 @@ export function ConsumptionBreakdown({
         <StackedBarChart
           data={chartData}
           height={180}
-          formatValue={(v) => `$${v.toFixed(2)}`}
+          formatValue={chartType === "tokens" ? (v) => `${(v / 1000).toFixed(1)}K` : (v) => `$${v.toFixed(2)}`}
           theme={theme}
         />
 
         {/* Legend */}
         <div className="flex flex-wrap gap-3 mt-4">
-          {modelStats.slice(0, 6).map((m, i) => (
-            <div key={m.model} className="flex items-center gap-1.5 text-xs">
-              <span 
-                className="w-2.5 h-2.5 rounded-sm" 
-                style={{ backgroundColor: colors[i % colors.length] }} 
-              />
-              <span className={isDark ? "text-zinc-400" : "text-[#6b6b6b]"}>{m.model}</span>
-            </div>
-          ))}
+          {chartType === "tokens" ? (
+            <>
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: isDark ? "#3b82f6" : "#EB5601" }} />
+                <span className={isDark ? "text-zinc-400" : "text-[#6b6b6b]"}>Prompt Tokens</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: isDark ? "#22c55e" : "#8b7355" }} />
+                <span className={isDark ? "text-zinc-400" : "text-[#6b6b6b]"}>Completion Tokens</span>
+              </div>
+            </>
+          ) : (
+            tableStats.slice(0, 6).map((s, i) => (
+              <div key={"model" in s ? s.model : s.project} className="flex items-center gap-1.5 text-xs">
+                <span 
+                  className="w-2.5 h-2.5 rounded-sm" 
+                  style={{ backgroundColor: colors[i % colors.length] }} 
+                />
+                <span className={isDark ? "text-zinc-400" : "text-[#6b6b6b]"}>{"model" in s ? s.model : s.project}</span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -930,31 +1060,44 @@ export function ConsumptionBreakdown({
         <table className="w-full">
           <thead>
             <tr className={cn("border-b text-[10px] uppercase tracking-wider", isDark ? "border-zinc-800/30 text-zinc-600" : "border-[#e6e4e1] text-[#8b7355]")}>
-              <th className="px-4 py-2 text-left font-normal">Product</th>
-              <th className="px-4 py-2 text-right font-normal">Usage</th>
-              <th className="px-4 py-2 text-right font-normal">Charge</th>
+              <th className="px-4 py-2 text-left font-normal">{selectedProject ? "Project" : "Model"}</th>
+              <th className="px-4 py-2 text-right font-normal">Prompt</th>
+              <th className="px-4 py-2 text-right font-normal">Completion</th>
+              <th className="px-4 py-2 text-right font-normal">Total</th>
+              <th className="px-4 py-2 text-right font-normal">Cost</th>
             </tr>
           </thead>
           <tbody>
-            {modelStats.slice(0, 5).map((m, i) => (
-              <tr key={m.model} className={cn("border-b transition-colors", isDark ? "border-zinc-800/30 hover:bg-zinc-800/30" : "border-[#e6e4e1] hover:bg-[#ebe9e6]")}>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span 
-                      className="w-2 h-2 rounded-full" 
-                      style={{ backgroundColor: colors[i % colors.length] }} 
-                    />
-                    <span className={cn("text-sm", isDark ? "text-zinc-300" : "text-[#1a1a1a]")}>{m.model}</span>
-                  </div>
-                </td>
-                <td className={cn("px-4 py-2.5 text-sm text-right", isDark ? "text-zinc-400" : "text-[#6b6b6b]")}>
-                  {(m.totalTokens / 1000).toFixed(1)}K tokens
-                </td>
-                <td className={cn("px-4 py-2.5 text-sm text-right font-medium", isDark ? "text-zinc-200" : "text-[#1a1a1a]")}>
-                  ${m.cost.toFixed(4)}
-                </td>
-              </tr>
-            ))}
+            {tableStats.slice(0, 5).map((s, i) => {
+              const key = "model" in s ? s.model : s.project;
+              const promptTokens = (s as any).promptTokens || 0;
+              const completionTokens = (s as any).completionTokens || 0;
+              return (
+                <tr key={key} className={cn("border-b transition-colors", isDark ? "border-zinc-800/30 hover:bg-zinc-800/30" : "border-[#e6e4e1] hover:bg-[#ebe9e6]")}>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span 
+                        className="w-2 h-2 rounded-full" 
+                        style={{ backgroundColor: colors[i % colors.length] }} 
+                      />
+                      <span className={cn("text-sm truncate max-w-[150px]", isDark ? "text-zinc-300" : "text-[#1a1a1a]")}>{key}</span>
+                    </div>
+                  </td>
+                  <td className={cn("px-4 py-2.5 text-sm text-right", isDark ? "text-zinc-400" : "text-[#6b6b6b]")}>
+                    {(promptTokens / 1000).toFixed(1)}K
+                  </td>
+                  <td className={cn("px-4 py-2.5 text-sm text-right", isDark ? "text-zinc-400" : "text-[#6b6b6b]")}>
+                    {(completionTokens / 1000).toFixed(1)}K
+                  </td>
+                  <td className={cn("px-4 py-2.5 text-sm text-right", isDark ? "text-zinc-400" : "text-[#6b6b6b]")}>
+                    {(s.totalTokens / 1000).toFixed(1)}K
+                  </td>
+                  <td className={cn("px-4 py-2.5 text-sm text-right font-medium", isDark ? "text-zinc-200" : "text-[#1a1a1a]")}>
+                    ${s.cost.toFixed(4)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className={isDark ? "bg-zinc-800/20" : "bg-[#ebe9e6]/50"}>
@@ -962,10 +1105,16 @@ export function ConsumptionBreakdown({
                 Total
               </td>
               <td className={cn("px-4 py-2.5 text-sm text-right", isDark ? "text-zinc-400" : "text-[#6b6b6b]")}>
-                {((summaryStats?.totalTokens || 0) / 1000).toFixed(1)}K tokens
+                {((filteredSummary?.promptTokens || 0) / 1000).toFixed(1)}K
+              </td>
+              <td className={cn("px-4 py-2.5 text-sm text-right", isDark ? "text-zinc-400" : "text-[#6b6b6b]")}>
+                {((filteredSummary?.completionTokens || 0) / 1000).toFixed(1)}K
+              </td>
+              <td className={cn("px-4 py-2.5 text-sm text-right", isDark ? "text-zinc-400" : "text-[#6b6b6b]")}>
+                {((filteredSummary?.totalTokens || 0) / 1000).toFixed(1)}K
               </td>
               <td className={cn("px-4 py-2.5 text-sm text-right font-medium", isDark ? "text-zinc-100" : "text-[#1a1a1a]")}>
-                ${(summaryStats?.totalCost || 0).toFixed(4)}
+                ${(filteredSummary?.totalCost || 0).toFixed(4)}
               </td>
             </tr>
           </tfoot>
