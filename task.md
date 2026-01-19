@@ -9,11 +9,11 @@ OpenSync supports two AI coding tools: **OpenCode** and **Claude Code**.
 - [x] Fix filter UI alignment
 - [x] Add API rename and Claude API config
 - [x] Notifications UI match existing design
-- [ ] Dedicated context search page (/context) system
+- [x] Dedicated context search page (/context) system
+- [x] Search results highlighting
+- [x] Pagination for large session lists
 - [ ] update docs
-- [ ] Delete user data and profile option
-- [ ] Search results highlighting
-- [ ] Pagination for large session lists
+- [x] Delete user data and profile option
 
 ## Completed
 
@@ -91,6 +91,23 @@ OpenSync supports two AI coding tools: **OpenCode** and **Claude Code**.
 
 None currently.
 
+## Recently Completed
+
+- [x] Delete user data and account options
+  - Added deleteAllData mutation (removes sessions, messages, parts, embeddings, apiLogs)
+  - Added deleteAccount action (calls WorkOS API DELETE /user_management/users/:id)
+  - Danger Zone section in Settings Profile tab with confirmation modals
+  - Trust message on login page about data privacy and control
+  - Getting started section with plugin links on login page
+
+- [x] Fixed Claude Code session content rendering (empty blocks issue)
+  - Added content normalization helpers to handle different formats (string vs object)
+  - SessionViewer now properly extracts text from `{ text: "..." }` or `{ content: "..." }` formats
+  - Added fallback to `message.textContent` when parts are empty
+  - Updated markdown export, API export, and context functions with same normalization
+  - Fixed searchable text extraction in message upsert for better full-text search
+  - Enhanced embedding generation to use parts content as fallback
+
 ## Backlog
 
 ### High Priority (Plugins)
@@ -135,9 +152,12 @@ See [SYNC-FOR-EVALS-PRD.md](docs/SYNC-FOR-EVALS-PRD.md) for full specification.
 
 ### Medium Priority (RAG Context Library)
 
-- [ ] Dedicated context search page (/context)
+- [x] Dedicated context search page (/context)
+- [x] Paginated search results (20 per page)
+- [x] Full-text search without OpenAI API key
 - [ ] Token budget controls
 - [ ] Saved searches / bookmarks
+- [ ] Expose the existing search APIs as MCP tools that agents can call directly
 - [ ] Copy format options (plain, markdown, XML tags)
 
 ### Low Priority (Analytics)

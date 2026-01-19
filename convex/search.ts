@@ -33,7 +33,7 @@ type UserResult = {
   updatedAt: number;
 } | null;
 
-// Full-text search on sessions
+// Full-text search on sessions (no OpenAI required)
 export const searchSessions = query({
   args: {
     query: v.string(),
@@ -92,7 +92,118 @@ export const searchSessions = query({
   },
 });
 
-// Full-text search on messages
+// Paginated full-text search on sessions (no OpenAI required)
+// Uses Convex's built-in full-text search which is reactive and real-time
+export const searchSessionsPaginated = query({
+  args: {
+    query: v.string(),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.number()), // Use offset-based pagination for search
+  },
+  returns: v.object({
+    sessions: v.array(
+      v.object({
+        _id: v.id("sessions"),
+        externalId: v.string(),
+        title: v.optional(v.string()),
+        projectPath: v.optional(v.string()),
+        projectName: v.optional(v.string()),
+        model: v.optional(v.string()),
+        provider: v.optional(v.string()),
+        source: v.optional(v.string()),
+        totalTokens: v.number(),
+        cost: v.number(),
+        isPublic: v.boolean(),
+        messageCount: v.number(),
+        summary: v.optional(v.string()),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+      })
+    ),
+    nextCursor: v.union(v.number(), v.null()),
+    total: v.number(),
+  }),
+  handler: async (ctx, { query: searchQuery, limit = 20, cursor = 0 }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return { sessions: [], nextCursor: null, total: 0 };
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .first();
+
+    if (!user) return { sessions: [], nextCursor: null, total: 0 };
+
+    // Empty query returns recent sessions
+    if (!searchQuery.trim()) {
+      const allSessions = await ctx.db
+        .query("sessions")
+        .withIndex("by_user_updated", (q) => q.eq("userId", user._id))
+        .order("desc")
+        .take(limit + cursor + 1);
+
+      const paginatedSessions = allSessions.slice(cursor, cursor + limit);
+      const hasMore = allSessions.length > cursor + limit;
+
+      return {
+        sessions: paginatedSessions.map((s) => ({
+          _id: s._id,
+          externalId: s.externalId,
+          title: s.title,
+          projectPath: s.projectPath,
+          projectName: s.projectName,
+          model: s.model,
+          provider: s.provider,
+          source: s.source,
+          totalTokens: s.totalTokens,
+          cost: s.cost,
+          isPublic: s.isPublic,
+          messageCount: s.messageCount,
+          summary: s.summary,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+        })),
+        nextCursor: hasMore ? cursor + limit : null,
+        total: allSessions.length,
+      };
+    }
+
+    // Full-text search (Convex built-in, no OpenAI needed)
+    const results = await ctx.db
+      .query("sessions")
+      .withSearchIndex("search_sessions", (q) =>
+        q.search("searchableText", searchQuery).eq("userId", user._id)
+      )
+      .take(limit + cursor + 1);
+
+    const paginatedResults = results.slice(cursor, cursor + limit);
+    const hasMore = results.length > cursor + limit;
+
+    return {
+      sessions: paginatedResults.map((s) => ({
+        _id: s._id,
+        externalId: s.externalId,
+        title: s.title,
+        projectPath: s.projectPath,
+        projectName: s.projectName,
+        model: s.model,
+        provider: s.provider,
+        source: s.source,
+        totalTokens: s.totalTokens,
+        cost: s.cost,
+        isPublic: s.isPublic,
+        messageCount: s.messageCount,
+        summary: s.summary,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      })),
+      nextCursor: hasMore ? cursor + limit : null,
+      total: results.length,
+    };
+  },
+});
+
+// Full-text search on messages (no OpenAI required)
 export const searchMessages = query({
   args: {
     query: v.string(),
@@ -169,6 +280,109 @@ export const searchMessages = query({
         };
       })
     );
+  },
+});
+
+// Paginated full-text search on messages (no OpenAI required)
+export const searchMessagesPaginated = query({
+  args: {
+    query: v.string(),
+    sessionId: v.optional(v.id("sessions")),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.number()),
+  },
+  returns: v.object({
+    messages: v.array(
+      v.object({
+        _id: v.id("messages"),
+        _creationTime: v.number(),
+        sessionId: v.id("sessions"),
+        externalId: v.string(),
+        role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("unknown")),
+        textContent: v.optional(v.string()),
+        model: v.optional(v.string()),
+        promptTokens: v.optional(v.number()),
+        completionTokens: v.optional(v.number()),
+        durationMs: v.optional(v.number()),
+        createdAt: v.number(),
+        sessionTitle: v.optional(v.string()),
+        projectPath: v.optional(v.string()),
+        projectName: v.optional(v.string()),
+      })
+    ),
+    nextCursor: v.union(v.number(), v.null()),
+    total: v.number(),
+  }),
+  handler: async (ctx, { query: searchQuery, sessionId, limit = 20, cursor = 0 }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return { messages: [], nextCursor: null, total: 0 };
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .first();
+
+    if (!user) return { messages: [], nextCursor: null, total: 0 };
+
+    // Get user's sessions for filtering
+    const userSessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    const sessionIds = new Set(userSessions.map((s) => s._id));
+    const sessionMap = new Map(userSessions.map((s) => [s._id, s]));
+
+    // Empty query - return nothing (user must search for something)
+    if (!searchQuery.trim()) {
+      return { messages: [], nextCursor: null, total: 0 };
+    }
+
+    let results;
+    if (sessionId) {
+      // Filter by specific session
+      if (!sessionIds.has(sessionId)) {
+        return { messages: [], nextCursor: null, total: 0 };
+      }
+
+      results = await ctx.db
+        .query("messages")
+        .withSearchIndex("search_messages", (q) =>
+          q.search("textContent", searchQuery).eq("sessionId", sessionId)
+        )
+        .take(limit + cursor + 1);
+    } else {
+      // Search across all user's sessions
+      results = await ctx.db
+        .query("messages")
+        .withSearchIndex("search_messages", (q) =>
+          q.search("textContent", searchQuery)
+        )
+        .take((limit + cursor + 1) * 2);
+
+      // Filter to only user's sessions
+      results = results.filter((msg) => sessionIds.has(msg.sessionId));
+    }
+
+    const paginatedResults = results.slice(cursor, cursor + limit);
+    const hasMore = results.length > cursor + limit;
+
+    // Attach session info
+    const messagesWithSession = paginatedResults.map((msg) => {
+      const session = sessionMap.get(msg.sessionId);
+      return {
+        ...msg,
+        sessionTitle: session?.title,
+        projectPath: session?.projectPath,
+        projectName: session?.projectName,
+      };
+    });
+
+    return {
+      messages: messagesWithSession,
+      nextCursor: hasMore ? cursor + limit : null,
+      total: results.length,
+    };
   },
 });
 

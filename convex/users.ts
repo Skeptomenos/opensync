@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, action } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { nanoid } from "nanoid";
 
 // Get current user from auth
@@ -201,5 +202,216 @@ export const getByWorkosId = internalMutation({
     });
 
     return await ctx.db.get(userId);
+  },
+});
+
+// Delete all user data (keeps account intact)
+// Deletes: parts, messages, sessionEmbeddings, sessions, apiLogs
+export const deleteAllData = mutation({
+  args: {},
+  returns: v.object({ deleted: v.boolean(), counts: v.object({
+    sessions: v.number(),
+    messages: v.number(),
+    parts: v.number(),
+    embeddings: v.number(),
+    apiLogs: v.number(),
+  })}),
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .first();
+
+    if (!user) throw new Error("User not found");
+
+    // Delete all user data using the internal helper
+    const counts = await deleteUserData(ctx, user._id);
+
+    return { deleted: true, counts };
+  },
+});
+
+// Internal: delete all user data (used by deleteAccount action)
+export const deleteAllDataInternal = internalMutation({
+  args: { userId: v.id("users"), deleteUser: v.boolean() },
+  returns: v.object({
+    sessions: v.number(),
+    messages: v.number(),
+    parts: v.number(),
+    embeddings: v.number(),
+    apiLogs: v.number(),
+  }),
+  handler: async (ctx, { userId, deleteUser }) => {
+    const counts = await deleteUserData(ctx, userId);
+    
+    // Optionally delete the user record itself
+    if (deleteUser) {
+      await ctx.db.delete(userId);
+    }
+
+    return counts;
+  },
+});
+
+// Helper function to delete all user data
+async function deleteUserData(ctx: any, userId: any) {
+  const counts = {
+    sessions: 0,
+    messages: 0,
+    parts: 0,
+    embeddings: 0,
+    apiLogs: 0,
+  };
+
+  // Get all sessions for this user
+  const sessions = await ctx.db
+    .query("sessions")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .collect();
+
+  // Delete parts and messages for each session
+  for (const session of sessions) {
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_session", (q: any) => q.eq("sessionId", session._id))
+      .collect();
+
+    for (const message of messages) {
+      // Delete parts for this message
+      const parts = await ctx.db
+        .query("parts")
+        .withIndex("by_message", (q: any) => q.eq("messageId", message._id))
+        .collect();
+
+      for (const part of parts) {
+        await ctx.db.delete(part._id);
+        counts.parts++;
+      }
+
+      // Delete the message
+      await ctx.db.delete(message._id);
+      counts.messages++;
+    }
+
+    // Delete the session
+    await ctx.db.delete(session._id);
+    counts.sessions++;
+  }
+
+  // Delete session embeddings
+  const embeddings = await ctx.db
+    .query("sessionEmbeddings")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .collect();
+
+  for (const embedding of embeddings) {
+    await ctx.db.delete(embedding._id);
+    counts.embeddings++;
+  }
+
+  // Delete API logs
+  const apiLogs = await ctx.db
+    .query("apiLogs")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .collect();
+
+  for (const log of apiLogs) {
+    await ctx.db.delete(log._id);
+    counts.apiLogs++;
+  }
+
+  return counts;
+}
+
+// Internal query to get user info for deletion
+export const getUserForDeletion = internalMutation({
+  args: { workosId: v.string() },
+  returns: v.union(
+    v.object({
+      _id: v.id("users"),
+      workosId: v.string(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, { workosId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_workos_id", (q) => q.eq("workosId", workosId))
+      .first();
+
+    if (!user) return null;
+
+    return {
+      _id: user._id,
+      workosId: user.workosId,
+    };
+  },
+});
+
+// Delete account action - deletes WorkOS account and all Convex data
+// Calls WorkOS API: DELETE /user_management/users/{user_id}
+export const deleteAccount = action({
+  args: {},
+  returns: v.object({ deleted: v.boolean(), error: v.optional(v.string()) }),
+  handler: async (ctx): Promise<{ deleted: boolean; error?: string }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return { deleted: false, error: "Not authenticated" };
+    }
+
+    // Get the user record
+    const user: { _id: any; workosId: string } | null = await ctx.runMutation(
+      internal.users.getUserForDeletion,
+      { workosId: identity.subject }
+    );
+
+    if (!user) {
+      return { deleted: false, error: "User not found" };
+    }
+
+    // Get the WorkOS API key
+    const workosApiKey = process.env.WORKOS_API_KEY;
+    if (!workosApiKey) {
+      return { deleted: false, error: "WorkOS API key not configured" };
+    }
+
+    try {
+      // Call WorkOS API to delete the user
+      // API Reference: https://workos.com/docs/reference/authkit/user/delete
+      const response: Response = await fetch(
+        `https://api.workos.com/user_management/users/${user.workosId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${workosApiKey}`,
+          },
+        }
+      );
+
+      // 204 = success (no content), 404 = user already deleted
+      if (!response.ok && response.status !== 404) {
+        const errorText = await response.text();
+        return {
+          deleted: false,
+          error: `WorkOS API error: ${response.status} - ${errorText}`,
+        };
+      }
+
+      // Delete all user data from Convex (including the user record)
+      await ctx.runMutation(internal.users.deleteAllDataInternal, {
+        userId: user._id,
+        deleteUser: true,
+      });
+
+      return { deleted: true };
+    } catch (error) {
+      return {
+        deleted: false,
+        error: `Failed to delete account: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
   },
 });

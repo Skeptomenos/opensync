@@ -131,10 +131,17 @@ export const upsert = internalMutation({
         });
       }
 
-      // Update searchable text
+      // Update searchable text with content normalization
+      // Handle both string content and object content ({ text: "..." } or { content: "..." })
       const textParts = args.parts
         .filter((p) => p.type === "text")
-        .map((p) => p.content)
+        .map((p) => {
+          const content = p.content;
+          if (!content) return "";
+          if (typeof content === "string") return content;
+          return content.text || content.content || "";
+        })
+        .filter((t) => t)
         .join(" ");
 
       if (textParts) {

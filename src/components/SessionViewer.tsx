@@ -212,6 +212,18 @@ function MessageBlock({ message }: { message: any }) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
 
+  // Check if parts have any displayable content
+  const hasPartsContent = message.parts?.some((part: any) => {
+    if (part.type === "text") {
+      const text = getTextContent(part.content);
+      return text && text.trim().length > 0;
+    }
+    return part.type === "tool-call" || part.type === "tool-result";
+  });
+
+  // Use textContent as fallback if no parts have content
+  const showFallback = !hasPartsContent && message.textContent;
+
   return (
     <div className={cn("flex gap-3", isUser && "flex-row-reverse")}>
       <div
@@ -240,9 +252,39 @@ function MessageBlock({ message }: { message: any }) {
             isUser ? "bg-primary text-primary-foreground" : "bg-card border border-border"
           )}
         >
-          {message.parts.map((part: any, i: number) => (
-            <PartRenderer key={i} part={part} isUser={isUser} />
-          ))}
+          {showFallback ? (
+            // Fallback: render textContent when parts are empty
+            <div className={cn("prose prose-sm max-w-none", isUser ? "prose-invert" : "dark:prose-invert")}>
+              <ReactMarkdown
+                components={{
+                  code({ node, inline, className, children, ...props }: any) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    return !inline && match ? (
+                      <SyntaxHighlighter
+                        style={vscDarkPlus}
+                        language={match[1]}
+                        PreTag="div"
+                        {...props}
+                      >
+                        {String(children).replace(/\n$/, "")}
+                      </SyntaxHighlighter>
+                    ) : (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                }}
+              >
+                {message.textContent}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            // Normal: render parts
+            message.parts?.map((part: any, i: number) => (
+              <PartRenderer key={i} part={part} isUser={isUser} />
+            ))
+          )}
         </div>
         <span className="text-xs text-muted-foreground mt-1">
           {new Date(message.createdAt).toLocaleTimeString()}
@@ -252,8 +294,39 @@ function MessageBlock({ message }: { message: any }) {
   );
 }
 
+// Helper to extract text content from various formats
+// Claude Code may store content as { text: "..." } or { content: "..." }
+function getTextContent(content: any): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  // Handle object formats from different plugins
+  return content.text || content.content || "";
+}
+
+// Helper to extract tool call details from various formats
+function getToolCallDetails(content: any): { name: string; args: any } {
+  if (!content) return { name: "Unknown Tool", args: {} };
+  return {
+    name: content.name || content.toolName || "Unknown Tool",
+    args: content.args || content.arguments || content.input || {},
+  };
+}
+
+// Helper to extract tool result from various formats
+function getToolResult(content: any): string {
+  if (!content) return "";
+  const result = content.result || content.output || content;
+  if (typeof result === "string") return result;
+  return JSON.stringify(result, null, 2);
+}
+
 function PartRenderer({ part, isUser }: { part: any; isUser: boolean }) {
   if (part.type === "text") {
+    const textContent = getTextContent(part.content);
+    
+    // Skip empty text parts
+    if (!textContent) return null;
+    
     return (
       <div className={cn("prose prose-sm max-w-none", isUser ? "prose-invert" : "dark:prose-invert")}>
         <ReactMarkdown
@@ -277,33 +350,33 @@ function PartRenderer({ part, isUser }: { part: any; isUser: boolean }) {
             },
           }}
         >
-          {part.content}
+          {textContent}
         </ReactMarkdown>
       </div>
     );
   }
 
   if (part.type === "tool-call") {
+    const { name, args } = getToolCallDetails(part.content);
     return (
       <div className="my-2 p-3 rounded bg-accent/50 border border-border">
         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Wrench className="h-4 w-4" />
-          {part.content.name}
+          {name}
         </div>
         <pre className="mt-2 text-xs overflow-x-auto text-muted-foreground">
-          {JSON.stringify(part.content.args, null, 2)}
+          {JSON.stringify(args, null, 2)}
         </pre>
       </div>
     );
   }
 
   if (part.type === "tool-result") {
+    const result = getToolResult(part.content);
     return (
       <div className="my-2 p-3 rounded bg-green-500/10 border border-green-500/20">
         <pre className="text-xs overflow-x-auto text-foreground">
-          {typeof part.content.result === "string"
-            ? part.content.result
-            : JSON.stringify(part.content.result, null, 2)}
+          {result}
         </pre>
       </div>
     );

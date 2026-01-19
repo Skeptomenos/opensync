@@ -212,6 +212,13 @@ export function DashboardPage() {
             </div>
           </div>
           <Link
+            to="/context"
+            className={cn("text-xs transition-colors", t.textSubtle, "hover:opacity-80")}
+            title="Advanced context search"
+          >
+            Context
+          </Link>
+          <Link
             to="/docs"
             className={cn("text-xs transition-colors", t.textSubtle, "hover:opacity-80")}
           >

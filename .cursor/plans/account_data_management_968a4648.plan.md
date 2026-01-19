@@ -4,16 +4,16 @@ overview: Add user account deletion (via WorkOS API) and data deletion capabilit
 todos:
   - id: delete-data-mutation
     content: Add deleteAllData and deleteAllDataInternal mutations in convex/users.ts
-    status: pending
+    status: completed
   - id: delete-account-action
     content: Add deleteAccount action in convex/users.ts to call WorkOS API and clean up data
-    status: pending
+    status: completed
   - id: settings-danger-zone
     content: Add Danger Zone section in Settings.tsx with delete buttons and confirmation modals
-    status: pending
+    status: completed
   - id: homepage-trust-message
     content: Add data management trust message to Login.tsx
-    status: pending
+    status: completed
 ---
 
 # Account and Data Management Features

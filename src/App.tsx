@@ -8,6 +8,7 @@ import { DocsPage } from "./pages/Docs";
 import { PublicSessionPage } from "./pages/PublicSession";
 import { SettingsPage } from "./pages/Settings";
 import { EvalsPage } from "./pages/Evals";
+import { ContextPage } from "./pages/Context";
 import { Loader2, ArrowLeft } from "lucide-react";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -112,6 +113,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <EvalsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/context"
+        element={
+          <ProtectedRoute>
+            <ContextPage />
           </ProtectedRoute>
         }
       />

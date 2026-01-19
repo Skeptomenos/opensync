@@ -25,11 +25,11 @@ Backend functions and schema.
 | `schema.ts` | Database schema: users, sessions (with eval fields: evalReady, reviewedAt, evalNotes, evalTags), messages, parts, sessionEmbeddings, messageEmbeddings, apiLogs |
 | `auth.config.ts` | WorkOS JWT validation configuration |
 | `convex.config.ts` | Convex app configuration |
-| `users.ts` | User queries/mutations: getOrCreate, me, stats, API key management |
+| `users.ts` | User queries/mutations: getOrCreate, me, stats, API key management, deleteAllData, deleteAccount (WorkOS API integration) |
 | `sessions.ts` | Session CRUD: list, get, getPublic, setVisibility, remove, getMarkdown, upsert (with source param), listExternalIds, exportAllDataCSV |
 | `messages.ts` | Message mutations: upsert with parts and source parameter for auto-created sessions |
 | `analytics.ts` | Analytics queries with source filtering: dailyStats, modelStats, projectStats, providerStats, summaryStats, sessionsWithDetails, sourceStats |
-| `search.ts` | Full-text and semantic search: searchSessions, searchMessages, semanticSearch, hybridSearch, semanticSearchMessages, hybridSearchMessages |
+| `search.ts` | Full-text and semantic search: searchSessions, searchSessionsPaginated, searchMessages, searchMessagesPaginated, semanticSearch, hybridSearch, semanticSearchMessages, hybridSearchMessages |
 | `embeddings.ts` | Vector embedding generation for session-level and message-level semantic search |
 | `evals.ts` | Eval management: setEvalReady, listEvalSessions, getEvalTags, generateEvalExport (DeepEval JSON, OpenAI JSONL, Filesystem formats) |
 | `api.ts` | Internal API functions: listSessions, getSession, fullTextSearch, exportSession, getStats, semanticSearch, hybridSearch, getContext |
@@ -52,12 +52,13 @@ React frontend application.
 
 | File | Description |
 |------|-------------|
-| `Login.tsx` | Login page with WorkOS AuthKit integration, privacy messaging |
+| `Login.tsx` | Login page with WorkOS AuthKit integration, privacy messaging, getting started section with plugin links |
 | `Dashboard.tsx` | Main dashboard with source filter dropdown, source badges (CC/OC), eval toggle button, and four views: Overview (stats, charts), Sessions (filterable list with source badges), Evals (eval-ready sessions with export modal), Analytics (detailed breakdowns) |
-| `Settings.tsx` | Tabbed settings: Usage (charts, stats), API Access (keys, endpoints), Profile (account info) |
+| `Settings.tsx` | Tabbed settings: API Access (keys, endpoints), Profile (account info, Danger Zone with delete data/account options) |
 | `Docs.tsx` | Interactive API documentation page |
 | `PublicSession.tsx` | Public session viewer for shared sessions (/s/:slug) |
 | `Evals.tsx` | Evals page with eval-ready session list, stats, export modal (DeepEval JSON, OpenAI JSONL, Filesystem formats) |
+| `Context.tsx` | Dedicated context search page (/context) with paginated full-text search for sessions and messages, no OpenAI key required |
 
 ### src/components/
 

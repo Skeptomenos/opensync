@@ -80,16 +80,15 @@ export function LoginPage() {
                   and semantic lookup
                 </p>
                 <p>
-                  <span className="text-sky-400 font-mono">Share</span> public links in
-                  one click
-                </p>
-                <p>
                   <span className="text-[#ce9178] font-mono">Private</span> your data stays
-                  in your account
+                  in your account. 
                 </p>
                 <p>
                   <span className="text-[#9cdcfe] font-mono">Export</span> sessions for
                   evals in DeepEval, OpenAI, or plain text
+                </p>
+                <p>
+                  <span className="text-[#FF6541] font-mono">Delete</span> your data, your control, delete your sessions anytime.
                 </p>
               </div>
 
@@ -143,10 +142,18 @@ export function LoginPage() {
                 <span>Markdown</span>
                 <span>Token stats</span>
               </div>
+
+              {/* Trust message */}
+              <div className="mt-6 rounded-md border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+                <p className="text-xs text-zinc-400">
+                  Your sessions stay private. Unsync or delete your data from the database anytime.
+                </p>
+              </div>
             </div>
 
-            {/* Right side: Mini dashboard mock */}
-            <div className="hidden lg:block">
+            {/* Right side: Mini dashboard mock + Getting started */}
+            <div className="hidden lg:flex lg:flex-col lg:gap-6">
+              {/* Dashboard preview */}
               <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#161616]">
                 {/* Window chrome */}
                 <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
@@ -239,6 +246,48 @@ export function LoginPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Getting started section */}
+              <div className="rounded-lg border border-zinc-800 bg-[#161616] p-4">
+                <h3 className="text-sm font-medium text-zinc-300">
+                  Getting started
+                </h3>
+                <p className="mt-2 text-[11px] text-zinc-500">
+                  Install one of the sync plugins to send session data to your dashboard.
+                </p>
+
+                <div className="mt-3 space-y-2">
+                  {/* Claude Code Sync */}
+                  <a
+                    href="https://www.npmjs.com/package/claude-code-sync"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex items-center justify-between rounded-md border border-zinc-800 bg-[#0E0E0E] px-3 py-2 transition-colors hover:border-zinc-700"
+                  >
+                    <span className="font-mono text-xs text-zinc-400 group-hover:text-zinc-300">
+                      claude-code-sync
+                    </span>
+                    <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-600">
+                      npm
+                    </span>
+                  </a>
+
+                  {/* OpenCode Sync Plugin */}
+                  <a
+                    href="https://www.npmjs.com/package/opencode-sync-plugin"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex items-center justify-between rounded-md border border-zinc-800 bg-[#0E0E0E] px-3 py-2 transition-colors hover:border-zinc-700"
+                  >
+                    <span className="font-mono text-xs text-zinc-400 group-hover:text-zinc-300">
+                      opencode-sync-plugin
+                    </span>
+                    <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-600">
+                      npm
+                    </span>
+                  </a>
                 </div>
               </div>
             </div>

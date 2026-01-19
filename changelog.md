@@ -8,6 +8,17 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Delete synced data option in Settings (removes all sessions, messages, embeddings while keeping account)
+- Delete account option in Settings (calls WorkOS API to delete user, removes all Convex data)
+- Danger Zone section in Profile tab with confirmation modals for destructive actions
+- Trust message on login page about data control and privacy
+- Getting started section on login page with plugin install links (claude-code-sync, opencode-sync-plugin)
+- Dedicated context search page (/context) with full-text search for sessions and messages
+- Paginated search queries (searchSessionsPaginated, searchMessagesPaginated) with 20 results per page
+- Context search uses Convex built-in full-text search (no OpenAI API key required)
+- Search mode toggle (Sessions/Messages) with keyboard shortcut (Cmd/Ctrl+K)
+- Search result highlighting with match context extraction
+- Context link added to Dashboard header for quick access
 - Evals tab in Dashboard with eval-ready session list, stats, and export modal
 - Evals backend (convex/evals.ts): setEvalReady, listEvalSessions, getEvalTags, generateEvalExport
 - Export formats for evals: DeepEval JSON, OpenAI Evals JSONL, Filesystem plain text
@@ -54,6 +65,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Fixed Claude Code session content rendering with empty blocks
+- Added content normalization helpers to handle different part formats (string vs `{ text: "..." }` vs `{ content: "..." }`)
+- SessionViewer now properly extracts text content from all plugin formats
+- Added fallback to `message.textContent` when parts have no displayable content
+- Updated markdown export, API export, and context functions with same content normalization
+- Fixed searchable text extraction in message upsert for better full-text search on Claude Code sessions
+- Enhanced embedding generation to use parts content as fallback when textContent is empty
 - Fixed session persistence on page refresh with improved token refresh logic and retry mechanism
 - Auth sync now retries up to 3 times with proper state management to prevent infinite loops
 - Added 5-second timeout on session sync in ProtectedRoute to prevent stuck loading states

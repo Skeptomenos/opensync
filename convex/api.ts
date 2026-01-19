@@ -263,6 +263,14 @@ export const fullTextSearch = internalQuery({
   },
 });
 
+// Helper to extract text content from various formats
+// Claude Code may store content as { text: "..." } or { content: "..." }
+function getTextContent(content: any): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  return content.text || content.content || "";
+}
+
 // Export session
 export const exportSession = internalQuery({
   args: {
@@ -318,10 +326,22 @@ export const exportSession = internalQuery({
           .collect();
 
         md += `## ${msg.role === "user" ? "User" : "Assistant"}\n\n`;
+        
+        // Collect text content from parts
+        let hasContent = false;
         for (const part of parts.sort((a, b) => a.order - b.order)) {
           if (part.type === "text") {
-            md += `${part.content}\n\n`;
+            const textContent = getTextContent(part.content);
+            if (textContent) {
+              md += `${textContent}\n\n`;
+              hasContent = true;
+            }
           }
+        }
+        
+        // Fallback: use message.textContent if no parts have content
+        if (!hasContent && msg.textContent) {
+          md += `${msg.textContent}\n\n`;
         }
       }
 
@@ -339,13 +359,21 @@ export const exportSession = internalQuery({
           .withIndex("by_message", (q) => q.eq("messageId", msg._id))
           .collect();
 
+        // Extract text content from parts with normalization
+        const textParts = parts
+          .filter((p) => p.type === "text")
+          .map((p) => getTextContent(p.content))
+          .filter((t) => t);
+        
+        // Use textContent as fallback if no text parts
+        const content = textParts.length > 0 
+          ? textParts.join("\n") 
+          : (msg.textContent || "");
+
         lines.push(
           JSON.stringify({
             role: msg.role,
-            content: parts
-              .filter((p) => p.type === "text")
-              .map((p) => p.content)
-              .join("\n"),
+            content,
           })
         );
       }
@@ -363,12 +391,20 @@ export const exportSession = internalQuery({
         .withIndex("by_message", (q) => q.eq("messageId", msg._id))
         .collect();
 
+      // Extract text content from parts with normalization
+      const textParts = parts
+        .filter((p) => p.type === "text")
+        .map((p) => getTextContent(p.content))
+        .filter((t) => t);
+      
+      // Use textContent as fallback if no text parts
+      const content = textParts.length > 0 
+        ? textParts.join("\n") 
+        : (msg.textContent || "");
+
       openaiMessages.push({
         role: msg.role,
-        content: parts
-          .filter((p) => p.type === "text")
-          .map((p) => p.content)
-          .join("\n"),
+        content,
       });
     }
 
@@ -568,6 +604,13 @@ export const hybridSearch = internalAction({
   },
 });
 
+// Helper to extract text content in actions (same logic as getTextContent)
+function extractTextContent(content: any): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  return content.text || content.content || "";
+}
+
 // Get context for external LLM
 export const getContext = internalAction({
   args: {
@@ -628,10 +671,18 @@ export const getContext = internalAction({
 
           for (const msg of data.messages.slice(-10)) {
             text += `[${msg.role.toUpperCase()}]\n`;
-            const content = msg.parts
+            
+            // Extract text content with normalization
+            const textParts = msg.parts
               .filter((p: { type: string; content: any }) => p.type === "text")
-              .map((p: { type: string; content: any }) => p.content)
-              .join("\n");
+              .map((p: { type: string; content: any }) => extractTextContent(p.content))
+              .filter((t: string) => t);
+            
+            // Use textContent as fallback if no text parts
+            const content = textParts.length > 0 
+              ? textParts.join("\n") 
+              : (msg.textContent || "");
+            
             text += `${content}\n\n`;
           }
 
@@ -653,10 +704,16 @@ export const getContext = internalAction({
 
       if (data) {
         for (const msg of data.messages.slice(-10)) {
-          const content = msg.parts
+          // Extract text content with normalization
+          const textParts = msg.parts
             .filter((p: { type: string; content: any }) => p.type === "text")
-            .map((p: { type: string; content: any }) => p.content)
-            .join("\n");
+            .map((p: { type: string; content: any }) => extractTextContent(p.content))
+            .filter((t: string) => t);
+          
+          // Use textContent as fallback if no text parts
+          const content = textParts.length > 0 
+            ? textParts.join("\n") 
+            : (msg.textContent || "");
 
           messages.push({
             role: msg.role,

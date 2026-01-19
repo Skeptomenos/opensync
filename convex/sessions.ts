@@ -361,6 +361,13 @@ export const upsert = internalMutation({
   },
 });
 
+// Helper to extract text content from various formats for embeddings
+function extractPartText(content: any): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  return content.text || content.content || "";
+}
+
 // Internal: get session for embedding
 export const getForEmbedding = internalMutation({
   args: { sessionId: v.id("sessions") },
@@ -373,10 +380,35 @@ export const getForEmbedding = internalMutation({
       .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
       .collect();
 
-    const textContent = messages
-      .map((m) => m.textContent)
-      .filter(Boolean)
-      .join("\n\n");
+    // Build text content from messages
+    const messageTexts: string[] = [];
+    
+    for (const msg of messages) {
+      // First try textContent
+      if (msg.textContent) {
+        messageTexts.push(msg.textContent);
+        continue;
+      }
+      
+      // Fallback to parts if textContent is empty
+      const parts = await ctx.db
+        .query("parts")
+        .withIndex("by_message", (q) => q.eq("messageId", msg._id))
+        .collect();
+      
+      const partsText = parts
+        .filter((p) => p.type === "text")
+        .sort((a, b) => a.order - b.order)
+        .map((p) => extractPartText(p.content))
+        .filter(Boolean)
+        .join("\n");
+      
+      if (partsText) {
+        messageTexts.push(partsText);
+      }
+    }
+
+    const textContent = messageTexts.filter(Boolean).join("\n\n");
 
     return {
       session,

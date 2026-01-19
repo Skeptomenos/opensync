@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuth } from "../lib/auth";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { cn } from "../lib/utils";
 import { useTheme, getThemeClasses } from "../lib/theme";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -21,6 +21,8 @@ import {
   Zap,
   Sun,
   Moon,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 
 // Convex URL from environment
@@ -29,6 +31,7 @@ const CONVEX_URL = import.meta.env.VITE_CONVEX_URL as string;
 export function SettingsPage() {
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
   const t = getThemeClasses(theme);
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -36,12 +39,20 @@ export function SettingsPage() {
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"api" | "profile">("api");
   const [showRevokeModal, setShowRevokeModal] = useState(false);
+  
+  // Danger zone state
+  const [showDeleteDataModal, setShowDeleteDataModal] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const currentUser = useQuery(api.users.me);
   const stats = useQuery(api.users.stats);
 
   const generateApiKey = useMutation(api.users.generateApiKey);
   const revokeApiKey = useMutation(api.users.revokeApiKey);
+  const deleteAllData = useMutation(api.users.deleteAllData);
+  const deleteAccount = useAction(api.users.deleteAccount);
 
   const handleGenerateKey = async () => {
     const key = await generateApiKey();
@@ -72,6 +83,40 @@ export function SettingsPage() {
       await navigator.clipboard.writeText(CONVEX_URL);
       setCopiedUrl(true);
       setTimeout(() => setCopiedUrl(false), 2000);
+    }
+  };
+
+  // Delete all synced data (keeps account)
+  const handleDeleteData = async () => {
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteAllData();
+      setShowDeleteDataModal(false);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Failed to delete data");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Delete account and all data
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      const result = await deleteAccount();
+      if (result.deleted) {
+        // Sign out and redirect to login
+        signOut();
+        navigate("/login");
+      } else {
+        setDeleteError(result.error || "Failed to delete account");
+      }
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Failed to delete account");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -381,6 +426,68 @@ export function SettingsPage() {
                 </div>
               </div>
             </section>
+
+            {/* Danger Zone */}
+            <section>
+              <h2 className={cn("text-sm font-normal mb-4 flex items-center gap-2 text-red-400")}>
+                <AlertTriangle className="h-4 w-4" />
+                Danger Zone
+              </h2>
+              <div className={cn("p-4 rounded-lg border border-red-500/30 space-y-4", t.bgCard)}>
+                {/* Delete error message */}
+                {deleteError && (
+                  <div className="p-3 rounded border border-red-500/50 bg-red-500/10">
+                    <p className="text-sm text-red-400">{deleteError}</p>
+                  </div>
+                )}
+
+                {/* Delete synced data */}
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className={cn("text-sm font-medium", t.textSecondary)}>Delete synced data</p>
+                    <p className={cn("text-xs mt-1", t.textDim)}>
+                      Remove all sessions, messages, and embeddings. Your account will remain active.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowDeleteDataModal(true)}
+                    disabled={isDeleting}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3 w-3" />
+                    )}
+                    Delete Data
+                  </button>
+                </div>
+
+                <div className={cn("border-t", t.border)} />
+
+                {/* Delete account */}
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className={cn("text-sm font-medium", t.textSecondary)}>Delete account</p>
+                    <p className={cn("text-xs mt-1", t.textDim)}>
+                      Permanently delete your account and all data. This cannot be undone.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowDeleteAccountModal(true)}
+                    disabled={isDeleting}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-red-600 text-white hover:bg-red-500 transition-colors disabled:opacity-50"
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3 w-3" />
+                    )}
+                    Delete Account
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
         )}
       </main>
@@ -393,6 +500,36 @@ export function SettingsPage() {
         title="Revoke API Key"
         message="Are you sure? This will invalidate any apps using this key."
         confirmText="Revoke Key"
+        cancelText="Cancel"
+        variant="danger"
+      />
+
+      {/* Delete Data Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteDataModal}
+        onClose={() => {
+          setShowDeleteDataModal(false);
+          setDeleteError(null);
+        }}
+        onConfirm={handleDeleteData}
+        title="Delete All Synced Data"
+        message="This will permanently delete all your sessions, messages, and embeddings. Your account will remain active and you can sync new data anytime."
+        confirmText="Delete All Data"
+        cancelText="Cancel"
+        variant="danger"
+      />
+
+      {/* Delete Account Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteAccountModal}
+        onClose={() => {
+          setShowDeleteAccountModal(false);
+          setDeleteError(null);
+        }}
+        onConfirm={handleDeleteAccount}
+        title="Delete Account"
+        message="This will permanently delete your account and all associated data. This action cannot be undone. You will be signed out immediately."
+        confirmText="Delete Account"
         cancelText="Cancel"
         variant="danger"
       />
