@@ -503,8 +503,12 @@ function OverviewView({
     return dismissed !== "true";
   });
   
-  // Determine if user has no data
-  const hasNoData = !summaryStats || summaryStats.totalSessions === 0;
+  // Check if data is still loading (summaryStats is undefined while query is in progress)
+  const isLoading = summaryStats === undefined;
+  
+  // Only show banner when data has loaded AND there are no sessions
+  // This prevents the flash on refresh when user has data
+  const hasNoData = !isLoading && summaryStats.totalSessions === 0;
   
   // Handler to dismiss banner
   const handleDismissBanner = () => {

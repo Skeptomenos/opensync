@@ -93,6 +93,8 @@ None currently.
 
 ## Recently Completed
 
+- [x] Fixed setup banner flash on dashboard refresh (banner now checks loading state before rendering)
+
 - [x] Collapsible Profile section in Settings (collapsed by default, hides email for video demos)
 
 - [x] Removed user email from dropdown menus (Dashboard, Context, Evals, Header) for cleaner UX
