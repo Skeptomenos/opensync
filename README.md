@@ -69,7 +69,7 @@ npx convex dev
 
 Requires Convex, WorkOS, and Netlify accounts.
 
-[Self hosting guide](https://www.opensync.dev/docs#hosting) | [Fork guide](https://www.opensync.dev/docs#fork)
+[Self hosting guide](https://www.opensync.dev/docs#hosting) | [Fork guide](https://www.opensync.dev/docs#fork) | [install.md](install.md)
 
 ## Dashboard
 

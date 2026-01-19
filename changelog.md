@@ -8,6 +8,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- install.md file for AI agent installation following installmd.org spec (self-hosting setup instructions)
 - Collapsible Profile section in Settings page (collapsed by default for privacy during demos/recordings)
 
 ### Fixed

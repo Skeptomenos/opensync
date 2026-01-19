@@ -15,6 +15,7 @@ Codebase file structure and descriptions.
 | `postcss.config.js` | PostCSS configuration |
 | `netlify.toml` | Netlify deployment config with SPA redirect rules |
 | `README.md` | Project documentation |
+| `install.md` | AI agent installation instructions following install.md spec for self-hosting setup |
 
 ## convex/
 

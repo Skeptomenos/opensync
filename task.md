@@ -93,6 +93,8 @@ None currently.
 
 ## Recently Completed
 
+- [x] Added install.md for AI agent installation (follows installmd.org spec for self-hosting setup)
+
 - [x] Fixed setup banner flash on dashboard refresh (banner now checks loading state before rendering)
 
 - [x] Collapsible Profile section in Settings (collapsed by default, hides email for video demos)
