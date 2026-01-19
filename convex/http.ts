@@ -107,9 +107,15 @@ http.route({
     try {
       const body = await request.json();
 
+      // Accept both externalId (opencode-sync) and sessionId (claude-code-sync)
+      const externalId = body.externalId || body.sessionId;
+      if (!externalId) {
+        return json({ error: "Missing externalId or sessionId" }, 400);
+      }
+
       const sessionId = await ctx.runMutation(internal.sessions.upsert, {
         userId: auth.user._id,
-        externalId: body.externalId,
+        externalId,
         title: body.title,
         projectPath: body.projectPath,
         projectName: body.projectName,
