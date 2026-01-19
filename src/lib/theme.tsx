@@ -38,7 +38,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         return stored;
       }
     }
-    return "dark"; // Default to dark
+    return "tan"; // Default to tan
   });
 
   // Persist theme changes
