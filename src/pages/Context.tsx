@@ -6,6 +6,9 @@ import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
 import { useTheme, getThemeClasses } from "../lib/theme";
 import type { Id } from "../../convex/_generated/dataModel";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
   Search,
   Settings,
@@ -26,6 +29,13 @@ import {
   Loader2,
   Hash,
   X,
+  Copy,
+  Check,
+  Download,
+  ExternalLink,
+  Wrench,
+  Cpu,
+  Coins,
 } from "lucide-react";
 
 // Search mode: sessions or messages
@@ -46,6 +56,10 @@ export function ContextPage() {
   const [searchMode, setSearchMode] = useState<SearchMode>("sessions");
   const [cursor, setCursor] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  
+  // Slide-over panel state
+  const [selectedSessionId, setSelectedSessionId] = useState<Id<"sessions"> | null>(null);
+  const [selectedMessageId, setSelectedMessageId] = useState<Id<"messages"> | null>(null);
 
   // Debounce search query (300ms delay)
   useEffect(() => {
@@ -121,6 +135,35 @@ export function ContextPage() {
   const isLoading = searchMode === "sessions"
     ? sessionResults === undefined && debouncedQuery !== ""
     : messageResults === undefined && debouncedQuery !== "";
+
+  // Fetch full session details for slide-over panel
+  const selectedSession = useQuery(
+    api.sessions.get,
+    selectedSessionId ? { sessionId: selectedSessionId } : "skip"
+  );
+
+  // Handle opening session in slide-over
+  const handleOpenSession = (sessionId: Id<"sessions">, messageId?: Id<"messages">) => {
+    setSelectedSessionId(sessionId);
+    setSelectedMessageId(messageId || null);
+  };
+
+  // Handle closing slide-over
+  const handleClosePanel = () => {
+    setSelectedSessionId(null);
+    setSelectedMessageId(null);
+  };
+
+  // Close panel on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selectedSessionId) {
+        handleClosePanel();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [selectedSessionId]);
 
   return (
     <div className={cn("min-h-screen flex flex-col", t.bgPrimary)}>
@@ -297,7 +340,7 @@ export function ContextPage() {
                     key={session._id}
                     session={session}
                     theme={theme}
-                    onClick={() => navigate(`/?session=${session._id}`)}
+                    onClick={() => handleOpenSession(session._id)}
                   />
                 ))
               ) : (
@@ -308,6 +351,7 @@ export function ContextPage() {
                     message={message}
                     theme={theme}
                     searchQuery={debouncedQuery}
+                    onClick={() => handleOpenSession(message.sessionId, message._id)}
                   />
                 ))
               )}
@@ -394,6 +438,21 @@ export function ContextPage() {
           Powered by Convex Full-Text Search
         </span>
       </footer>
+
+      {/* Session Slide-over Panel */}
+      <SessionSlideOver
+        isOpen={!!selectedSessionId}
+        onClose={handleClosePanel}
+        session={selectedSession?.session}
+        messages={selectedSession?.messages || []}
+        highlightMessageId={selectedMessageId}
+        theme={theme}
+        onOpenInDashboard={() => {
+          if (selectedSessionId) {
+            navigate(`/?session=${selectedSessionId}`);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -500,6 +559,7 @@ function MessageResultCard({
   message,
   theme,
   searchQuery,
+  onClick,
 }: {
   message: {
     _id: Id<"messages">;
@@ -514,10 +574,10 @@ function MessageResultCard({
   };
   theme: "dark" | "tan";
   searchQuery: string;
+  onClick: () => void;
 }) {
   const t = getThemeClasses(theme);
   const isUser = message.role === "user";
-  const navigate = useNavigate();
 
   // Highlight matching text
   const highlightedText = message.textContent
@@ -526,7 +586,7 @@ function MessageResultCard({
 
   return (
     <button
-      onClick={() => navigate(`/?session=${message.sessionId}`)}
+      onClick={onClick}
       className={cn(
         "w-full p-4 rounded-lg border text-left transition-colors",
         t.bgCard, t.border, t.bgHover
@@ -661,4 +721,452 @@ function getTimeAgo(timestamp: number): string {
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
   return new Date(timestamp).toLocaleDateString();
+}
+
+// Session Slide-over Panel Component
+function SessionSlideOver({
+  isOpen,
+  onClose,
+  session,
+  messages,
+  highlightMessageId,
+  theme,
+  onOpenInDashboard,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  session?: {
+    _id: Id<"sessions">;
+    title?: string;
+    projectPath?: string;
+    projectName?: string;
+    model?: string;
+    provider?: string;
+    source?: string;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    cost: number;
+    durationMs?: number;
+    isPublic: boolean;
+    publicSlug?: string;
+    createdAt: number;
+  };
+  messages: Array<{
+    _id: Id<"messages">;
+    role: "user" | "assistant" | "system" | "unknown";
+    textContent?: string;
+    createdAt: number;
+    parts: Array<{ type: string; content: any }>;
+  }>;
+  highlightMessageId: Id<"messages"> | null;
+  theme: "dark" | "tan";
+  onOpenInDashboard: () => void;
+}) {
+  const t = getThemeClasses(theme);
+  const [copied, setCopied] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const highlightedMessageRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to highlighted message when panel opens
+  useEffect(() => {
+    if (isOpen && highlightMessageId && highlightedMessageRef.current) {
+      setTimeout(() => {
+        highlightedMessageRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, [isOpen, highlightMessageId]);
+
+  // Get markdown for copy
+  const markdown = useQuery(
+    api.sessions.getMarkdown,
+    session?._id ? { sessionId: session._id } : "skip"
+  );
+
+  const handleCopy = async () => {
+    if (markdown) {
+      await navigator.clipboard.writeText(markdown);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleDownload = () => {
+    if (markdown && session) {
+      const blob = new Blob([markdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${session.title || "session"}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const formatDuration = (ms?: number) => {
+    if (!ms) return "N/A";
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+  };
+
+  const source = session?.source || "opencode";
+  const isClaudeCode = source === "claude-code";
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/50 transition-opacity z-40",
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <div
+        className={cn(
+          "fixed inset-y-0 right-0 w-full max-w-2xl shadow-2xl transition-transform duration-300 ease-out z-50 flex flex-col",
+          t.bgPrimary,
+          isOpen ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        {/* Loading state */}
+        {isOpen && !session && (
+          <div className="flex-1 flex items-center justify-center">
+            <Loader2 className={cn("h-8 w-8 animate-spin", t.textSubtle)} />
+          </div>
+        )}
+
+        {/* Content */}
+        {session && (
+          <>
+            {/* Header */}
+            <div className={cn("border-b p-4", t.border)}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className={cn("text-lg font-medium truncate", t.textPrimary)}>
+                      {session.title || "Untitled Session"}
+                    </h2>
+                    {/* Source badge */}
+                    <span className={cn(
+                      "shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide",
+                      isClaudeCode
+                        ? "bg-amber-500/15 text-amber-500"
+                        : "bg-blue-500/15 text-blue-400"
+                    )}>
+                      {isClaudeCode ? "Claude Code" : "OpenCode"}
+                    </span>
+                    {session.isPublic && (
+                      <Globe className="h-4 w-4 text-emerald-500 shrink-0" />
+                    )}
+                  </div>
+
+                  <div className={cn("flex flex-wrap items-center gap-3 text-sm", t.textMuted)}>
+                    {session.projectPath && (
+                      <span className="flex items-center gap-1">
+                        <Folder className="h-3 w-3" />
+                        {session.projectName || session.projectPath}
+                      </span>
+                    )}
+                    {session.model && (
+                      <span className="flex items-center gap-1">
+                        <Cpu className="h-3 w-3" />
+                        {session.model}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <Hash className="h-3 w-3" />
+                      {session.totalTokens.toLocaleString()} tokens
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Coins className="h-3 w-3" />
+                      ${session.cost.toFixed(4)}
+                    </span>
+                    {session.durationMs && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {formatDuration(session.durationMs)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Close button */}
+                <button
+                  onClick={onClose}
+                  className={cn("p-2 rounded-md transition-colors", t.textSubtle, t.bgHover)}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Actions bar */}
+              <div className="flex items-center gap-1 mt-3">
+                <button
+                  onClick={handleCopy}
+                  className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors", t.textMuted, t.bgHover)}
+                  title="Copy as Markdown"
+                >
+                  {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                  <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
+                </button>
+                <button
+                  onClick={handleDownload}
+                  className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors", t.textMuted, t.bgHover)}
+                  title="Download"
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Download</span>
+                </button>
+                {session.isPublic && session.publicSlug && (
+                  <a
+                    href={`/s/${session.publicSlug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors", t.textMuted, t.bgHover)}
+                    title="Open Public Link"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    <span className="hidden sm:inline">Public Link</span>
+                  </a>
+                )}
+                <div className="flex-1" />
+                <button
+                  onClick={onOpenInDashboard}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                    theme === "dark" ? "bg-zinc-800 text-zinc-200 hover:bg-zinc-700" : "bg-[#ebe9e6] text-[#1a1a1a] hover:bg-[#e0ded9]"
+                  )}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span>Open in Dashboard</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.length === 0 ? (
+                <div className={cn("text-center py-12", t.textMuted)}>
+                  <MessageSquare className={cn("h-12 w-12 mx-auto mb-4", t.textDim)} />
+                  <p>No messages in this session</p>
+                </div>
+              ) : (
+                messages.map((message) => (
+                  <div
+                    key={message._id}
+                    ref={message._id === highlightMessageId ? highlightedMessageRef : undefined}
+                    className={cn(
+                      "transition-colors rounded-lg",
+                      message._id === highlightMessageId && "ring-2 ring-yellow-500/50"
+                    )}
+                  >
+                    <SlideOverMessageBlock message={message} theme={theme} />
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+// Message block for slide-over (simplified version)
+function SlideOverMessageBlock({
+  message,
+  theme,
+}: {
+  message: {
+    _id: Id<"messages">;
+    role: "user" | "assistant" | "system" | "unknown";
+    textContent?: string;
+    createdAt: number;
+    parts: Array<{ type: string; content: any }>;
+  };
+  theme: "dark" | "tan";
+}) {
+  const t = getThemeClasses(theme);
+  const isUser = message.role === "user";
+  const isSystem = message.role === "system";
+
+  // Check if parts have any displayable content
+  const hasPartsContent = message.parts?.some((part: any) => {
+    if (part.type === "text") {
+      const text = getTextContentFromPart(part.content);
+      return text && text.trim().length > 0;
+    }
+    return part.type === "tool-call" || part.type === "tool-result";
+  });
+
+  // Use textContent as fallback if no parts have content
+  const showFallback = !hasPartsContent && message.textContent;
+
+  return (
+    <div className={cn("flex gap-3", isUser && "flex-row-reverse")}>
+      <div
+        className={cn(
+          "shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
+          isUser
+            ? t.bgUserBubble
+            : isSystem
+            ? "bg-yellow-500/20"
+            : t.bgAssistantBubble
+        )}
+      >
+        {isUser ? (
+          <User className={cn("h-4 w-4", t.textMuted)} />
+        ) : isSystem ? (
+          <Wrench className="h-4 w-4 text-yellow-500" />
+        ) : (
+          <Bot className={cn("h-4 w-4", t.textSubtle)} />
+        )}
+      </div>
+
+      <div className={cn("flex-1 max-w-full", isUser && "flex flex-col items-end")}>
+        <div
+          className={cn(
+            "rounded-lg p-3",
+            isUser ? t.bgUserBubble : cn(t.bgCard, "border", t.border)
+          )}
+        >
+          {showFallback ? (
+            <div className={cn("prose prose-sm max-w-none", theme === "dark" ? "prose-invert" : "")}>
+              <ReactMarkdown
+                components={{
+                  code({ node, inline, className, children, ...props }: any) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    return !inline && match ? (
+                      <SyntaxHighlighter
+                        style={vscDarkPlus}
+                        language={match[1]}
+                        PreTag="div"
+                        {...props}
+                      >
+                        {String(children).replace(/\n$/, "")}
+                      </SyntaxHighlighter>
+                    ) : (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                }}
+              >
+                {message.textContent || ""}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            message.parts?.map((part: any, i: number) => (
+              <SlideOverPartRenderer key={i} part={part} theme={theme} />
+            ))
+          )}
+        </div>
+        <span className={cn("text-xs mt-1", t.textDim)}>
+          {new Date(message.createdAt).toLocaleTimeString()}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// Helper to extract text content from various formats
+function getTextContentFromPart(content: any): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  return content.text || content.content || "";
+}
+
+// Helper to extract tool call details
+function getToolCallDetails(content: any): { name: string; args: any } {
+  if (!content) return { name: "Unknown Tool", args: {} };
+  return {
+    name: content.name || content.toolName || "Unknown Tool",
+    args: content.args || content.arguments || content.input || {},
+  };
+}
+
+// Helper to extract tool result
+function getToolResult(content: any): string {
+  if (!content) return "";
+  const result = content.result || content.output || content;
+  if (typeof result === "string") return result;
+  return JSON.stringify(result, null, 2);
+}
+
+// Part renderer for slide-over
+function SlideOverPartRenderer({
+  part,
+  theme,
+}: {
+  part: any;
+  theme: "dark" | "tan";
+}) {
+  const t = getThemeClasses(theme);
+
+  if (part.type === "text") {
+    const textContent = getTextContentFromPart(part.content);
+    if (!textContent) return null;
+
+    return (
+      <div className={cn("prose prose-sm max-w-none", theme === "dark" ? "prose-invert" : "")}>
+        <ReactMarkdown
+          components={{
+            code({ node, inline, className, children, ...props }: any) {
+              const match = /language-(\w+)/.exec(className || "");
+              return !inline && match ? (
+                <SyntaxHighlighter
+                  style={vscDarkPlus}
+                  language={match[1]}
+                  PreTag="div"
+                  {...props}
+                >
+                  {String(children).replace(/\n$/, "")}
+                </SyntaxHighlighter>
+              ) : (
+                <code className={className} {...props}>
+                  {children}
+                </code>
+              );
+            },
+          }}
+        >
+          {textContent}
+        </ReactMarkdown>
+      </div>
+    );
+  }
+
+  if (part.type === "tool-call") {
+    const { name, args } = getToolCallDetails(part.content);
+    return (
+      <div className={cn("my-2 p-3 rounded border", t.bgSecondary, t.border)}>
+        <div className={cn("flex items-center gap-2 text-sm font-medium", t.textPrimary)}>
+          <Wrench className="h-4 w-4" />
+          {name}
+        </div>
+        <pre className={cn("mt-2 text-xs overflow-x-auto", t.textMuted)}>
+          {JSON.stringify(args, null, 2)}
+        </pre>
+      </div>
+    );
+  }
+
+  if (part.type === "tool-result") {
+    const result = getToolResult(part.content);
+    return (
+      <div className="my-2 p-3 rounded bg-emerald-500/10 border border-emerald-500/20">
+        <pre className={cn("text-xs overflow-x-auto", t.textPrimary)}>
+          {result}
+        </pre>
+      </div>
+    );
+  }
+
+  return null;
 }

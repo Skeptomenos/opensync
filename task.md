@@ -93,6 +93,14 @@ None currently.
 
 ## Recently Completed
 
+- [x] Context search slide-over panel for better UX
+  - Click search results to preview session in slide-over panel (no navigation)
+  - Full session details with message thread and syntax highlighting
+  - Copy/Download/Public Link actions in panel header
+  - "Open in Dashboard" button for full view
+  - Message highlighting when clicking message search results
+  - Escape key and backdrop click to close
+
 - [x] Documentation updates for local deployment and external links
   - Added Watch the demo link on Login page CTA (links to X demo video)
   - Added 100% local deployment section in Docs page (/docs#requirements-local)

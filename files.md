@@ -59,7 +59,7 @@ React frontend application.
 | `Docs.tsx` | Comprehensive documentation page with left sidebar navigation (hidden scrollbar), right table of contents, anchor tags, copy/view as markdown buttons, mobile responsive, works with both dark/tan themes. Covers use hosted version (with features, plugin install, login/sync), self-hosting requirements with cloud and 100% local deployment options, quick start, dashboard features, OpenCode plugin, Claude Code plugin, API reference, search types, authentication, hosting, fork guide, troubleshooting, and FAQ. Links to opencode.ai and claude.ai in hero and plugin sections. |
 | `PublicSession.tsx` | Public session viewer for shared sessions (/s/:slug) with dark/tan theme toggle, content normalization for multi-plugin support, textContent fallback for empty parts |
 | `Evals.tsx` | Evals page with eval-ready session list, stats, export modal (DeepEval JSON, OpenAI JSONL, Filesystem formats) |
-| `Context.tsx` | Dedicated context search page (/context) with paginated full-text search for sessions and messages, no OpenAI key required |
+| `Context.tsx` | Dedicated context search page (/context) with paginated full-text search for sessions and messages, slide-over panel for viewing session details without navigation, message highlighting for search results, no OpenAI key required |
 
 ### src/components/
 
