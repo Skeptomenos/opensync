@@ -172,6 +172,15 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      {/* Profile redirects to settings (profile tab is in settings) */}
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/evals"
         element={
@@ -185,6 +194,15 @@ export default function App() {
         element={
           <ProtectedRoute>
             <ContextPage />
+          </ProtectedRoute>
+        }
+      />
+      {/* Dashboard routes - both / and /dashboard show the same page */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardPage />
           </ProtectedRoute>
         }
       />

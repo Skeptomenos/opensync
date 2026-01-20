@@ -13,6 +13,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added return-to URL preservation so users are redirected to their intended route after sign-in
 - Added devMode config to AuthKitProvider for proper production session handling
 - Improved callback flow: waits for both WorkOS and Convex auth to complete before redirecting
+- Added /dashboard route as alias to root dashboard
+- Added /profile route that shows Settings page with profile tab auto-selected and expanded
 
 ### Added
 

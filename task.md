@@ -100,6 +100,8 @@ None currently.
   - Added return-to URL preservation in sessionStorage
   - Added devMode config for production session handling
   - 10-second timeout on callback processing to prevent stuck states
+  - Added /dashboard route (alias to /)
+  - Added /profile route (shows Settings with profile tab selected)
 
 ## Recently Completed
 

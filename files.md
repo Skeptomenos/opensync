@@ -45,7 +45,7 @@ React frontend application.
 | File | Description |
 |------|-------------|
 | `main.tsx` | App entry point with providers (Convex, AuthKit, Router), devMode config for production session persistence |
-| `App.tsx` | Route definitions, protected route wrapper with sync timeout (5s max), CallbackHandler for OAuth code exchange with 10s timeout, return-to URL preservation |
+| `App.tsx` | Route definitions (/dashboard, /profile, /settings, /evals, /context), protected route wrapper with sync timeout (5s max), CallbackHandler for OAuth code exchange with 10s timeout, return-to URL preservation |
 | `index.css` | Global styles, Tailwind imports, dark theme tokens, chart utilities, scrollbar-hide utility |
 | `vite-env.d.ts` | Vite client type declarations for import.meta.env |
 

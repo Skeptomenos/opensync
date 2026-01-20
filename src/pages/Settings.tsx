@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useAuth } from "../lib/auth";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { cn } from "../lib/utils";
 import { useTheme, getThemeClasses } from "../lib/theme";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -33,14 +33,19 @@ const CONVEX_URL = import.meta.env.VITE_CONVEX_URL as string;
 export function SettingsPage() {
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const location = useLocation();
   const t = getThemeClasses(theme);
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"api" | "profile">("api");
+  // Default to profile tab if accessed via /profile URL
+  const [activeTab, setActiveTab] = useState<"api" | "profile">(
+    location.pathname === "/profile" ? "profile" : "api"
+  );
   const [showRevokeModal, setShowRevokeModal] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  // Auto-expand profile section when accessed via /profile
+  const [showProfile, setShowProfile] = useState(location.pathname === "/profile");
   
   // Danger zone state
   const [showDeleteDataModal, setShowDeleteDataModal] = useState(false);
