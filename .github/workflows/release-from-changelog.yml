@@ -1,0 +1,67 @@
+name: Create Release from Changelog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'changelog.md'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract latest version from changelog
+        id: changelog
+        run: |
+          # Get the first versioned section (skip [Unreleased])
+          VERSION=$(grep -E '## \[[0-9]+\.[0-9]+\.[0-9]+\]' changelog.md | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          
+          if [ -z "$VERSION" ]; then
+            echo "No version found in changelog"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Found version: $VERSION"
+          
+          # Extract the content for this version (between this ## and the next ##)
+          awk -v ver="## \\[$VERSION\\]" '
+            $0 ~ ver { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' changelog.md > release_body.txt
+          
+          echo "body<<CHANGELOG_EOF" >> $GITHUB_OUTPUT
+          cat release_body.txt >> $GITHUB_OUTPUT
+          echo "CHANGELOG_EOF" >> $GITHUB_OUTPUT
+
+      - name: Check if release already exists
+        if: steps.changelog.outputs.skip != 'true'
+        id: check
+        run: |
+          if gh release view "v${{ steps.changelog.outputs.version }}" &>/dev/null; then
+            echo "Release v${{ steps.changelog.outputs.version }} already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Release v${{ steps.changelog.outputs.version }} does not exist"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        if: steps.changelog.outputs.skip != 'true' && steps.check.outputs.exists == 'false'
+        run: |
+          gh release create "v${{ steps.changelog.outputs.version }}" \
+            --title "v${{ steps.changelog.outputs.version }}" \
+            --notes "${{ steps.changelog.outputs.body }}"
+          echo "Created release v${{ steps.changelog.outputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
