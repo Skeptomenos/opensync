@@ -44,8 +44,8 @@ React frontend application.
 
 | File | Description |
 |------|-------------|
-| `main.tsx` | App entry point with providers (Convex, AuthKit, Router), devMode config for production session persistence |
-| `App.tsx` | Route definitions: public routes (/, /login, /docs, /s/:slug), protected routes (/dashboard, /profile, /settings, /evals, /context). ProtectedRoute wrapper with sync timeout (5s max), CallbackHandler for OAuth code exchange with 10s timeout redirecting to /dashboard, return-to URL preservation |
+| `main.tsx` | App entry point with providers (Convex, AuthKit, Router), devMode=true for localStorage tokens (avoids third-party cookie blocking in production) |
+| `App.tsx` | Route definitions: public routes (/, /login, /docs, /s/:slug), protected routes (/dashboard, /profile, /settings, /evals, /context). ProtectedRoute with delayed spinner (500ms) and Safari timeout (5s), CallbackHandler for OAuth code exchange, return-to URL preservation |
 | `index.css` | Global styles, Tailwind imports, dark theme tokens, chart utilities, scrollbar-hide utility |
 | `vite-env.d.ts` | Vite client type declarations for import.meta.env |
 
@@ -123,6 +123,7 @@ Cursor IDE rules for AI assistance.
 | `convex2.mdc` | Convex best practices |
 | `rulesforconvex.mdc` | Additional Convex guidelines |
 | `convex-write-conflicts.mdc` | Write conflict prevention patterns with OpenSync-specific sync patterns (dedup windows, batch mutations, replace pattern) |
+| `changelog.mdc` | Changelog format rules for GitHub Releases automation |
 | `gitruels.mdc` | Git safety rules |
 | `sec-check.mdc` | Security checklist |
 | `task.mdc` | Task management guidelines |

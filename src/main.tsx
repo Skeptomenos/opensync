@@ -24,7 +24,7 @@ function Root() {
     <AuthKitProvider
       clientId={import.meta.env.VITE_WORKOS_CLIENT_ID}
       redirectUri={import.meta.env.VITE_REDIRECT_URI || `${window.location.origin}/callback`}
-      devMode={import.meta.env.DEV}
+      devMode={true}  // Force localStorage tokens to avoid third-party cookie blocking in production
       onRedirectCallback={onRedirectCallback}
     >
       <ConvexProviderWithAuthKit client={convex} useAuth={useAuth}>

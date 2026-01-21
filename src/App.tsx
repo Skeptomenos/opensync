@@ -1,5 +1,6 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { Routes, Route, Navigate, Link, useLocation, useSearchParams } from "react-router-dom";
+import { useConvexAuth } from "convex/react";
 import { useAuth } from "./lib/auth";
 import { useAuth as useAuthKit } from "@workos-inc/authkit-react";
 import { ThemeProvider } from "./lib/theme";
@@ -62,34 +63,53 @@ function CallbackHandler() {
   return <LoginPage />;
 }
 
+// ProtectedRoute using Convex auth as source of truth
+// Delays spinner to avoid flash, times out for Safari compatibility
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isLoading, isAuthenticated, user } = useAuth();
+  const { isLoading, isAuthenticated } = useConvexAuth();
   const location = useLocation();
-  const [syncTimeout, setSyncTimeout] = useState(false);
+  const [showSpinner, setShowSpinner] = useState(false);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
 
-  // Save the intended route before redirecting to login
-  // This allows returning to the original page after authentication
+  // Delay showing spinner by 500ms to avoid flash on fast loads
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !user) {
+    if (isLoading) {
+      const spinnerTimer = setTimeout(() => setShowSpinner(true), 500);
+      return () => clearTimeout(spinnerTimer);
+    }
+    setShowSpinner(false);
+  }, [isLoading]);
+
+  // Timeout after 5s to handle Safari infinite loading issue
+  useEffect(() => {
+    if (isLoading) {
+      const timeoutTimer = setTimeout(() => setLoadingTimeout(true), 5000);
+      return () => clearTimeout(timeoutTimer);
+    }
+    setLoadingTimeout(false);
+  }, [isLoading]);
+
+  // Save intended route before redirecting to login
+  useEffect(() => {
+    if ((!isLoading || loadingTimeout) && !isAuthenticated) {
       const currentPath = location.pathname + location.search;
-      // Only save if not already on login/callback routes
       if (currentPath !== "/login" && currentPath !== "/callback") {
         sessionStorage.setItem(RETURN_TO_KEY, currentPath);
       }
     }
-  }, [isLoading, isAuthenticated, user, location]);
+  }, [isLoading, loadingTimeout, isAuthenticated, location]);
 
-  // Timeout for sync loading state (5 seconds max)
-  useEffect(() => {
-    if (user && !isAuthenticated && !isLoading) {
-      const timer = setTimeout(() => setSyncTimeout(true), 5000);
-      return () => clearTimeout(timer);
-    }
-    setSyncTimeout(false);
-  }, [user, isAuthenticated, isLoading]);
+  // Loading timed out (Safari issue) - redirect to login
+  if (loadingTimeout && isLoading) {
+    return <Navigate to="/login" replace />;
+  }
 
-  // Show loading while auth state is being determined
+  // Still loading - only show spinner after delay
   if (isLoading) {
+    if (!showSpinner) {
+      // Render nothing while waiting for spinner delay (avoids flash)
+      return null;
+    }
     return (
       <div className="min-h-screen bg-[#0E0E0E] flex items-center justify-center">
         <div className="text-center">
@@ -100,24 +120,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  // If we have a WorkOS user but Convex isn't authenticated yet, show syncing
-  // But if sync times out, redirect to login (session may have expired)
-  if (user && !isAuthenticated) {
-    if (syncTimeout) {
-      // Session sync failed - redirect to login
-      return <Navigate to="/login" replace />;
-    }
-    return (
-      <div className="min-h-screen bg-[#0E0E0E] flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-6 w-6 animate-spin text-zinc-500 mx-auto" />
-          <p className="mt-2 text-xs text-zinc-600">Syncing session...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Not authenticated and no user - redirect to login
+  // Not authenticated - redirect to login
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }

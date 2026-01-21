@@ -8,6 +8,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- GitHub Releases automation: changelog.md updates now auto-create GitHub Releases via GitHub Actions
+- changelog.mdc cursor rule for consistent changelog format compatible with release automation
 - Terms of Service and Privacy Policy modal links in homepage footer (left of theme switcher)
 - Legal section in Settings Profile tab with Terms and Privacy buttons
 - LegalModal component with dark mode styling, markdown rendering, ESC/X to close
@@ -20,6 +22,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - OAuth callback now redirects to /dashboard instead of / after sign-in
 - Removed auto-redirect from LoginPage when authenticated
 - Settings back link now navigates to /dashboard instead of homepage
+
+### Fixed
+
+- Fixed production logout on page refresh by setting AuthKit devMode to true (avoids third-party cookie blocking)
+- Simplified ProtectedRoute to use Convex auth as single source of truth
+- Added 500ms spinner delay to avoid loading flash on fast auth checks
+- Added 5-second timeout to handle Safari infinite loading issue
 
 ### Added
 

@@ -10,6 +10,7 @@ OpenSync supports two AI coding tools: **OpenCode** and **Claude Code**.
 
 ## Completed
 
+- [x] Fix production logout on page refresh (devMode=true, simplified ProtectedRoute with Convex auth)
 - [x] Settings back link navigates to /dashboard instead of homepage
 - [x] Terms of Service and Privacy Policy modals in homepage footer and Settings page
 - [x] Public homepage: logged-in users stay on homepage with "Go to Dashboard" button, no auto-redirect

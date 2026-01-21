@@ -10,8 +10,8 @@ alwaysApply: true
   - When creating Convex mutations, always patch directly without reading first, use indexed queries for ownership checks instead of `ctx.db.get()`, make mutations idempotent with early returns, use timestamp-based ordering for new items, and use `Promise.all()` for parallel independent operations to avoid write conflicts.
 
 - Do you understand, what I’m asking? Never assume anything on your own, if anything isn’t clear, please ask questions and clarify your doubts.
-- add a one line gitcommit when adding entries to the changelog.
-- reference @dev2.mdc @help.mdc @gitruels.mdc @files.md if needed
+- For changelog updates, follow @changelog.mdc format (required for GitHub Releases automation)
+- reference @dev2.mdc @help.mdc @gitruels.mdc @changelog.mdc @files.md if needed
 - do not use use emoji or emojis in the readme or app unless instructed
 - always create type-safe code
 - you understand when to use Effect and when not to use Effect https://react.dev/learn/you-might-not-need-an-effect
@@ -63,9 +63,9 @@ alwaysApply: true
 - Treat me as an new developer
 - Be accurate and thorough
 - Keep a list of the codebase files, provide a brief description of what each file one does called files.md.
-- you keep a developer friendly changelog.md of new features added based on https://keepachangelog.com/en/1.0.0/ and keep changelog-page.md updated also.
+- you keep changelog.md updated following @changelog.mdc format for GitHub Releases automation
 - keep a track of changes completed in task.md
-- When a task touches changelog.md, the changelog page changelog-page.md, or files.md, run git log --date=short (or check commit history) and set each release date to match the real commit timeline—no placeholders or future months.
+- When creating a release in changelog.md, use today's date in YYYY-MM-DD format (e.g., 2025-01-20)
 - prd files always end with .MD and not .prd
 - prd files are located in the prds folder except for changelog.MD, files.MD, README.md and TASK.MD which can stay in the root folder
 - create type-safe code always, if the prds folder does not exist create one
