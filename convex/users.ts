@@ -1,9 +1,12 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation, action } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery, action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { nanoid } from "nanoid";
 
-// Get current user from auth
+// Default user ID for single-user homelab mode
+const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
+
+// Get current user - in single-user mode, returns the default user
 export const me = query({
   args: {},
   returns: v.union(
@@ -19,12 +22,10 @@ export const me = query({
     v.null()
   ),
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-
+    // Single-user mode: get default user by email
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return null;
@@ -41,37 +42,36 @@ export const me = query({
   },
 });
 
-// Get or create user from identity (called on login)
+// Internal: get default user for actions
+export const getDefaultUser = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
+      .first();
+  },
+});
+
+// Get or create user - single-user mode, creates default user if not exists
 export const getOrCreate = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
+    // Single-user mode: find or create by email
     const existing = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (existing) {
-      // Update if info changed
-      if (
-        existing.email !== identity.email ||
-        existing.name !== identity.name
-      ) {
-        await ctx.db.patch(existing._id, {
-          email: identity.email,
-          name: identity.name,
-          updatedAt: Date.now(),
-        });
-      }
       return existing._id;
     }
 
+    // Create default user
     return await ctx.db.insert("users", {
-      workosId: identity.subject,
-      email: identity.email,
-      name: identity.name,
+      workosId: "authelia-default", // Placeholder for schema compatibility
+      email: DEFAULT_USER_EMAIL,
+      name: "David",
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -82,12 +82,9 @@ export const getOrCreate = mutation({
 export const generateApiKey = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -109,12 +106,9 @@ export const generateApiKey = mutation({
 export const revokeApiKey = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -136,17 +130,13 @@ export const updateEnabledAgents = mutation({
   },
   returns: v.null(),
   handler: async (ctx, { enabledAgents }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) throw new Error("User not found");
 
-    // Patch directly for idempotency
     await ctx.db.patch(user._id, {
       enabledAgents,
       updatedAt: Date.now(),
@@ -160,12 +150,9 @@ export const updateEnabledAgents = mutation({
 export const stats = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return null;
@@ -212,7 +199,7 @@ export const getByApiKey = internalMutation({
   },
 });
 
-// Internal: get user by WorkOS ID
+// Internal: get user by WorkOS ID (kept for API compatibility)
 export const getByWorkosId = internalMutation({
   args: { workosId: v.string() },
   handler: async (ctx, { workosId }) => {
@@ -223,7 +210,7 @@ export const getByWorkosId = internalMutation({
 
     if (existing) return existing;
 
-    // Create if doesn't exist
+    // Create if does not exist
     const userId = await ctx.db.insert("users", {
       workosId,
       createdAt: Date.now(),
@@ -235,7 +222,6 @@ export const getByWorkosId = internalMutation({
 });
 
 // Delete all user data (keeps account intact)
-// Deletes: parts, messages, sessionEmbeddings, sessions, apiLogs
 export const deleteAllData = mutation({
   args: {},
   returns: v.object({ deleted: v.boolean(), counts: v.object({
@@ -246,24 +232,20 @@ export const deleteAllData = mutation({
     apiLogs: v.number(),
   })}),
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) throw new Error("User not found");
 
-    // Delete all user data using the internal helper
     const counts = await deleteUserData(ctx, user._id);
 
     return { deleted: true, counts };
   },
 });
 
-// Internal: delete all user data (used by deleteAccount action)
+// Internal: delete all user data
 export const deleteAllDataInternal = internalMutation({
   args: { userId: v.id("users"), deleteUser: v.boolean() },
   returns: v.object({
@@ -276,7 +258,6 @@ export const deleteAllDataInternal = internalMutation({
   handler: async (ctx, { userId, deleteUser }) => {
     const counts = await deleteUserData(ctx, userId);
     
-    // Optionally delete the user record itself
     if (deleteUser) {
       await ctx.db.delete(userId);
     }
@@ -295,13 +276,11 @@ async function deleteUserData(ctx: any, userId: any) {
     apiLogs: 0,
   };
 
-  // Get all sessions for this user
   const sessions = await ctx.db
     .query("sessions")
     .withIndex("by_user", (q: any) => q.eq("userId", userId))
     .collect();
 
-  // Delete parts and messages for each session
   for (const session of sessions) {
     const messages = await ctx.db
       .query("messages")
@@ -309,7 +288,6 @@ async function deleteUserData(ctx: any, userId: any) {
       .collect();
 
     for (const message of messages) {
-      // Delete parts for this message
       const parts = await ctx.db
         .query("parts")
         .withIndex("by_message", (q: any) => q.eq("messageId", message._id))
@@ -320,17 +298,14 @@ async function deleteUserData(ctx: any, userId: any) {
         counts.parts++;
       }
 
-      // Delete the message
       await ctx.db.delete(message._id);
       counts.messages++;
     }
 
-    // Delete the session
     await ctx.db.delete(session._id);
     counts.sessions++;
   }
 
-  // Delete session embeddings
   const embeddings = await ctx.db
     .query("sessionEmbeddings")
     .withIndex("by_user", (q: any) => q.eq("userId", userId))
@@ -341,7 +316,6 @@ async function deleteUserData(ctx: any, userId: any) {
     counts.embeddings++;
   }
 
-  // Delete API logs
   const apiLogs = await ctx.db
     .query("apiLogs")
     .withIndex("by_user", (q: any) => q.eq("userId", userId))
@@ -380,60 +354,23 @@ export const getUserForDeletion = internalMutation({
   },
 });
 
-// Delete account action - deletes Convex data first, then WorkOS account
-// This ensures data is deleted even if WorkOS has side effects (session invalidation)
-// Calls WorkOS API: DELETE /user_management/users/{user_id}
+// Delete account action - simplified for single-user mode
 export const deleteAccount = action({
   args: {},
   returns: v.object({ deleted: v.boolean(), error: v.optional(v.string()) }),
   handler: async (ctx): Promise<{ deleted: boolean; error?: string }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return { deleted: false, error: "Not authenticated" };
-    }
-
-    // Get the user record
-    const user: { _id: any; workosId: string } | null = await ctx.runMutation(
-      internal.users.getUserForDeletion,
-      { workosId: identity.subject }
-    );
+    // In single-user mode, get the default user
+    const user = await ctx.runQuery(internal.users.getDefaultUser, {});
 
     if (!user) {
       return { deleted: false, error: "User not found" };
     }
 
-    // Get the WorkOS API key
-    const workosApiKey = process.env.WORKOS_API_KEY;
-    if (!workosApiKey) {
-      return { deleted: false, error: "WorkOS API key not configured" };
-    }
-
     try {
-      // IMPORTANT: Delete Convex data FIRST before WorkOS
-      // WorkOS deletion may invalidate sessions and cause redirects
       await ctx.runMutation(internal.users.deleteAllDataInternal, {
         userId: user._id,
         deleteUser: true,
       });
-
-      // Now delete from WorkOS
-      // API Reference: https://workos.com/docs/reference/authkit/user/delete
-      const response: Response = await fetch(
-        `https://api.workos.com/user_management/users/${user.workosId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${workosApiKey}`,
-          },
-        }
-      );
-
-      // 204 = success (no content), 404 = user already deleted
-      if (!response.ok && response.status !== 404) {
-        // Note: Convex data is already deleted at this point
-        // Log the error but still consider it a success since data is gone
-        console.error(`WorkOS deletion failed: ${response.status}`);
-      }
 
       return { deleted: true };
     } catch (error) {

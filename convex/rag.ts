@@ -48,11 +48,11 @@ export const searchRAG = action({
     text: v.string(),
   }),
   handler: async (ctx, { query, limit = 10 }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return { results: [], text: "" };
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
-    const user = await ctx.runQuery(internal.search.getUserByWorkosId, {
-      workosId: identity.subject,
+    const user = await ctx.runQuery(internal.search.getUserByEmail, {
+      email: DEFAULT_USER_EMAIL,
     });
 
     if (!user) return { results: [], text: "" };
@@ -79,11 +79,11 @@ export const generateWithContext = action({
     contextUsed: v.boolean(),
   }),
   handler: async (ctx, { query, systemPrompt }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
-    const user = await ctx.runQuery(internal.search.getUserByWorkosId, {
-      workosId: identity.subject,
+    const user = await ctx.runQuery(internal.search.getUserByEmail, {
+      email: DEFAULT_USER_EMAIL,
     });
 
     if (!user) throw new Error("User not found");

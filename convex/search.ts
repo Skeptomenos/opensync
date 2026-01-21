@@ -58,12 +58,12 @@ export const searchSessions = query({
   handler: async (ctx, { query: searchQuery, limit = 20 }) => {
     if (!searchQuery.trim()) return [];
 
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return [];
@@ -124,12 +124,12 @@ export const searchSessionsPaginated = query({
     total: v.number(),
   }),
   handler: async (ctx, { query: searchQuery, limit = 20, cursor = 0 }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return { sessions: [], nextCursor: null, total: 0 };
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return { sessions: [], nextCursor: null, total: 0 };
@@ -230,12 +230,12 @@ export const searchMessages = query({
   handler: async (ctx, { query: searchQuery, sessionId, limit = 50 }) => {
     if (!searchQuery.trim()) return [];
 
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return [];
@@ -314,12 +314,12 @@ export const searchMessagesPaginated = query({
     total: v.number(),
   }),
   handler: async (ctx, { query: searchQuery, sessionId, limit = 20, cursor = 0 }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return { messages: [], nextCursor: null, total: 0 };
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return { messages: [], nextCursor: null, total: 0 };
@@ -409,12 +409,12 @@ export const semanticSearch = action({
     })
   ),
   handler: async (ctx, { query: searchQuery, limit = 10 }): Promise<SessionSearchResult[]> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     // Get user
-    const user: UserResult = await ctx.runQuery(internal.search.getUserByWorkosId, {
-      workosId: identity.subject,
+    const user: UserResult = await ctx.runQuery(internal.search.getUserByEmail, {
+      email: DEFAULT_USER_EMAIL,
     });
     if (!user) return [];
 
@@ -636,12 +636,12 @@ export const semanticSearchMessages = action({
     })
   ),
   handler: async (ctx, { query: searchQuery, sessionId, limit = 20 }): Promise<MessageSearchResult[]> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     // Get user
-    const user: UserResult = await ctx.runQuery(internal.search.getUserByWorkosId, {
-      workosId: identity.subject,
+    const user: UserResult = await ctx.runQuery(internal.search.getUserByEmail, {
+      email: DEFAULT_USER_EMAIL,
     });
     if (!user) return [];
 
@@ -818,5 +818,31 @@ export const hybridSearchMessages = action({
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map((item) => item.message);
+  },
+});
+
+// Single-user mode: get user by email
+export const getUserByEmail = internalQuery({
+  args: { email: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("users"),
+      _creationTime: v.number(),
+      workosId: v.string(),
+      email: v.optional(v.string()),
+      name: v.optional(v.string()),
+      avatarUrl: v.optional(v.string()),
+      apiKey: v.optional(v.string()),
+      apiKeyCreatedAt: v.optional(v.number()),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+  ),
+  handler: async (ctx, { email }) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
   },
 });

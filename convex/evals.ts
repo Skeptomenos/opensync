@@ -17,13 +17,13 @@ export const setEvalReady = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     // Verify session belongs to user via indexed query
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
     if (!user) throw new Error("User not found");
 
@@ -60,12 +60,12 @@ export const updateEvalNotes = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
     if (!user) throw new Error("User not found");
 
@@ -93,12 +93,12 @@ export const updateEvalTags = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
     if (!user) throw new Error("User not found");
 
@@ -162,14 +162,12 @@ export const listEvalSessions = query({
     }),
   }),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return { sessions: [], stats: { total: 0, bySource: { opencode: 0, claudeCode: 0, factoryDroid: 0 }, totalTestCases: 0 } };
-    }
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
     if (!user) {
       return { sessions: [], stats: { total: 0, bySource: { opencode: 0, claudeCode: 0, factoryDroid: 0 }, totalTestCases: 0 } };
@@ -243,12 +241,12 @@ export const getEvalTags = query({
   args: {},
   returns: v.array(v.string()),
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
     if (!user) return [];
 
@@ -337,8 +335,8 @@ export const generateEvalExport = action({
     }),
   }),
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     // Get sessions and messages via internal query
     const exportData = await ctx.runQuery(
@@ -346,7 +344,7 @@ export const generateEvalExport = action({
       "evals:getExportData",
       {
         sessionIds: args.sessionIds,
-        workosId: identity.subject,
+        email: DEFAULT_USER_EMAIL,
       }
     );
 
@@ -523,7 +521,7 @@ export const generateEvalExport = action({
 export const getExportData = query({
   args: {
     sessionIds: v.union(v.array(v.id("sessions")), v.literal("all")),
-    workosId: v.string(),
+    email: v.string(),
   },
   returns: v.union(
     v.null(),
@@ -535,7 +533,7 @@ export const getExportData = query({
   handler: async (ctx, args) => {
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", args.workosId))
+      .withIndex("by_email", (q) => q.eq("email", args.email))
       .first();
     if (!user) return null;
 

@@ -61,12 +61,12 @@ export const dailyStats = query({
     })
   ),
   handler: async (ctx, { days = 30, source }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return [];
@@ -137,12 +137,12 @@ export const modelStats = query({
     })
   ),
   handler: async (ctx, { source }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return [];
@@ -218,12 +218,12 @@ export const projectStats = query({
     })
   ),
   handler: async (ctx, { source }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return [];
@@ -292,12 +292,12 @@ export const providerStats = query({
     })
   ),
   handler: async (ctx, { source }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return [];
@@ -356,12 +356,12 @@ export const sessionsWithDetails = query({
     source: v.optional(v.string()), // "opencode" | "claude-code" | undefined (all)
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return { sessions: [], total: 0 };
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return { sessions: [], total: 0 };
@@ -443,12 +443,12 @@ export const sourceStats = query({
     })
   ),
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return [];
@@ -508,12 +508,12 @@ export const summaryStats = query({
     v.null()
   ),
   handler: async (ctx, { source }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return null;

@@ -9,12 +9,12 @@ export const list = query({
     cursor: v.optional(v.id("sessions")),
   },
   handler: async (ctx, { limit = 50 }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return { sessions: [], hasMore: false };
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return { sessions: [], hasMore: false };
@@ -58,12 +58,12 @@ export const list = query({
 export const get = query({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) return null;
@@ -130,12 +130,12 @@ export const setVisibility = mutation({
     isPublic: v.boolean(),
   },
   handler: async (ctx, { sessionId, isPublic }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -164,12 +164,12 @@ export const setVisibility = mutation({
 export const remove = mutation({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -214,12 +214,12 @@ export const remove = mutation({
 export const getMarkdown = query({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) throw new Error("User not found");
@@ -481,12 +481,12 @@ export const exportAllDataCSV = query({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    // Single-user mode
+    const DEFAULT_USER_EMAIL = process.env.DEFAULT_USER_EMAIL || "user@example.com";
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_workos_id", (q) => q.eq("workosId", identity.subject))
+      .withIndex("by_email", (q) => q.eq("email", DEFAULT_USER_EMAIL))
       .first();
 
     if (!user) throw new Error("User not found");

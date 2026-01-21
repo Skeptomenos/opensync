@@ -1,122 +1,152 @@
-# OpenSync
+# OpenSync (Authelia Fork)
 
-Dashboards for OpenCode and Claude coding sessions.
+Dashboards for OpenCode and Claude coding sessions - self-hosted with Authelia authentication.
 
-Cloud-synced dashboards that track session activity, tool usage, and token spend. Build eval datasets across projects.
+> This is a fork of [waynesutton/opensync](https://github.com/waynesutton/opensync) modified for homelab self-hosting with Authelia SSO instead of WorkOS.
 
-[Website](https://www.opensync.dev/) | [Docs](https://www.opensync.dev/docs) | [Dashboard](https://www.opensync.dev/)
+## What's Different in This Fork
 
-## Ecosystem
+| Feature | Upstream | This Fork |
+|---------|----------|-----------|
+| Authentication | WorkOS (paid for CORS) | Authelia (free, self-hosted) |
+| User Mode | Multi-tenant | Single-user (homelab) |
+| Hosting | Netlify + WorkOS | Traefik + Cloudflare Tunnel |
+| Auth Flow | Client-side OAuth | Reverse proxy headers |
 
-| Project | Description | Links |
-|---------|-------------|-------|
-| OpenSync | Dashboards for AI coding sessions | [Website](https://www.opensync.dev/) / [GitHub](https://github.com/waynesutton/opensync) |
-| opencode-sync-plugin | Sync OpenCode sessions | [GitHub](https://github.com/waynesutton/opencode-sync-plugin) / [npm](https://www.npmjs.com/package/opencode-sync-plugin) |
-| claude-code-sync | Sync Claude Code sessions | [GitHub](https://github.com/waynesutton/claude-code-sync) / [npm](https://www.npmjs.com/package/claude-code-sync) |
-| droid-sync | Sync Factory Droid sessions (community) | [GitHub](https://github.com/yemyat/droid-sync-plugin) / [npm](https://www.npmjs.com/package/droid-sync) |
+## Quick Start
+
+```bash
+cd ~/opensync
+
+# Start services
+npx convex dev          # Terminal 1
+npm run dev -- --host   # Terminal 2
+```
+
+Access at `https://opensync.yourdomain.com` (Authelia login required)
+
+## Architecture
+
+```
+Browser → Cloudflare Tunnel → Traefik → Authelia → Vite:5173 → Convex Cloud
+```
 
 ## Features
 
+All upstream features work:
+
 | Feature | Description |
 |---------|-------------|
-| [Sync](https://www.opensync.dev/docs#hosted-features) | Sessions sync in real time as you work |
-| [Search](https://www.opensync.dev/docs#search) | Full text, semantic, and hybrid search |
-| [Private](https://www.opensync.dev/docs#auth) | Your data stays in your account |
-| [Tag](https://www.opensync.dev/docs#dashboard-evals) | Organize sessions with custom labels for evals |
-| [Export](https://www.opensync.dev/docs#dashboard-evals) | DeepEval JSON, OpenAI Evals JSONL, plain text |
-| [Delete](https://www.opensync.dev/docs#hosted-features) | Your data, your control |
+| Sync | Sessions sync in real time as you work |
+| Search | Full text search across sessions |
+| Tag | Organize sessions with custom labels for evals |
+| Export | DeepEval JSON, OpenAI Evals JSONL, plain text |
+| Delete | Your data, your control |
 
-## Quick start
+## Sync Plugin Setup
 
-### Use the hosted version
-
-1. Go to [opensync.dev](https://www.opensync.dev/)
-2. Sign in with GitHub or email
-3. Install a sync plugin (see below)
-4. Start coding
-
-[Full setup guide](https://www.opensync.dev/docs#hosted)
-
-### Install sync plugins
-
-**For OpenCode:**
-
+**Install:**
 ```bash
 npm install -g opencode-sync-plugin
-opencode-sync login
 ```
 
-Add to your `opencode.json`:
-
+**Configure** (`~/.opensync/credentials.json`):
 ```json
 {
-  "plugins": ["opencode-sync-plugin"]
+  "convexUrl": "https://YOUR_CONVEX_DEPLOYMENT.convex.cloud",
+  "apiKey": "YOUR_API_KEY"
 }
 ```
 
-[OpenCode plugin docs](https://www.opensync.dev/docs#opencode-plugin)
-
-**For Claude Code:**
-
+**Generate API key:**
 ```bash
-npm install -g claude-code-sync
-claude-code-sync login
+npx convex run users:generateApiKey
 ```
 
-[Claude Code plugin docs](https://www.opensync.dev/docs#claude-plugin)
-
-## Self hosting
-
-Clone and deploy your own instance:
-
-```bash
-git clone https://github.com/waynesutton/opensync.git
-cd opensync
-npm install
-npx convex dev
+**Add to opencode.json:**
+```json
+{
+  "plugin": ["opencode-sync-plugin"]
+}
 ```
 
-Requires Convex, WorkOS, and Netlify accounts.
+**Verify:**
+```bash
+opencode-sync verify
+```
 
-[Self hosting guide](https://www.opensync.dev/docs#hosting) | [Fork guide](https://www.opensync.dev/docs#fork) | [install.md](install.md)
+## Configuration
 
-## Dashboard
+### Single-User Mode
 
-Four views for managing your sessions:
+This fork uses single-user mode. Set your email in the Convex files:
 
-| View | What it does |
-|------|--------------|
-| [Overview](https://www.opensync.dev/docs#dashboard-overview) | Usage stats, token charts, recent sessions |
-| [Sessions](https://www.opensync.dev/docs#dashboard-sessions) | Filter, search, and manage all sessions |
-| [Evals](https://www.opensync.dev/docs#dashboard-evals) | Mark sessions as eval-ready, export datasets |
-| [Analytics](https://www.opensync.dev/docs#dashboard-analytics) | Model comparison, project breakdown, cost tracking |
+```typescript
+// In convex/users.ts, convex/analytics.ts, etc.
+const DEFAULT_USER_EMAIL = "user@example.com";
+```
 
-[Context search](https://www.opensync.dev/docs#dashboard-context) lets you find relevant sessions for RAG and context engineering.
+Update all files listed in [HOMELAB_SETUP.md](HOMELAB_SETUP.md#single-user-mode).
 
-## API
+### Traefik Configuration
 
-All endpoints require authentication. Generate an API key in Settings.
+Create a route with Authelia middleware:
 
-| Endpoint | Description |
-|----------|-------------|
-| `POST /sync/session` | Sync a session |
-| `POST /sync/message` | Sync a message |
-| `GET /api/sessions` | List sessions |
-| `GET /api/search?q=` | Search sessions |
-| `GET /api/context?q=` | Get context for LLM |
-| `GET /api/export?id=` | Export session |
+```yaml
+http:
+  routers:
+    opensync:
+      rule: "Host(`opensync.yourdomain.com`)"
+      middlewares:
+        - "authelia"
+      service: "opensync"
+```
 
-[Full API reference](https://www.opensync.dev/docs#api)
+See [HOMELAB_SETUP.md](HOMELAB_SETUP.md) for full Traefik config.
 
+## Key Changes from Upstream
 
+### Authentication (`src/lib/auth.tsx`)
+- Replaced WorkOS AuthKit with Authelia header reading
+- Frontend calls `/api/me` to get user info from Traefik headers
 
-## Tech stack
+### Vite Config (`vite.config.ts`)
+- Added `/api/me` middleware that returns Authelia `Remote-*` headers
 
-- [Convex](https://convex.dev) for backend and real time sync
-- [WorkOS](https://workos.com) for authentication
-- React, Vite, Tailwind for frontend
-- OpenAI for embeddings
+### Convex Backend (`convex/*.ts`)
+- Single-user mode with configurable `DEFAULT_USER_EMAIL`
+- No per-request auth (Convex can't see Authelia headers)
+- API keys still work for sync plugins
+
+### Routing (`src/App.tsx`)
+- Removed `/callback` route (no OAuth callback needed)
+- `/` redirects to `/dashboard`
+
+## Documentation
+
+- **Setup & Troubleshooting**: See [HOMELAB_SETUP.md](HOMELAB_SETUP.md)
+- **Upstream Docs**: [opensync.dev/docs](https://www.opensync.dev/docs)
+
+## Upstream Sync
+
+```bash
+git fetch upstream
+git merge upstream/main
+# Resolve conflicts in auth-related files
+git push origin main
+```
+
+## Tech Stack
+
+- [Convex](https://convex.dev) - Backend and real-time sync
+- [Authelia](https://www.authelia.com/) - SSO authentication (replaces WorkOS)
+- [Traefik](https://traefik.io/) - Reverse proxy with auth middleware
+- React, Vite, Tailwind - Frontend
 
 ## License
 
-MIT
+MIT (same as upstream)
+
+---
+
+**Upstream**: [github.com/waynesutton/opensync](https://github.com/waynesutton/opensync)
