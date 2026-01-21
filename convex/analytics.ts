@@ -578,3 +578,84 @@ export const summaryStats = query({
     };
   },
 });
+
+// Public platform-wide stats for homepage leaderboard (no auth required)
+// Returns top models and top CLI sources sorted by usage
+export const publicPlatformStats = query({
+  args: {},
+  returns: v.object({
+    topModels: v.array(
+      v.object({
+        model: v.string(),
+        totalTokens: v.number(),
+        sessions: v.number(),
+      })
+    ),
+    topSources: v.array(
+      v.object({
+        source: v.string(),
+        sessions: v.number(),
+        totalTokens: v.number(),
+      })
+    ),
+  }),
+  handler: async (ctx) => {
+    // Fetch all sessions for platform-wide stats
+    const sessions = await ctx.db.query("sessions").collect();
+
+    if (sessions.length === 0) {
+      return {
+        topModels: [],
+        topSources: [],
+      };
+    }
+
+    // Aggregate by model
+    const modelMap: Record<string, { totalTokens: number; sessions: number }> = {};
+    // Aggregate by source (CLI tool)
+    const sourceMap: Record<string, { sessions: number; totalTokens: number }> = {};
+
+    for (const s of sessions) {
+      // Model aggregation
+      const model = s.model || "unknown";
+      if (!modelMap[model]) {
+        modelMap[model] = { totalTokens: 0, sessions: 0 };
+      }
+      modelMap[model].totalTokens += s.totalTokens;
+      modelMap[model].sessions += 1;
+
+      // Source/CLI aggregation (supports: opencode, claude-code, cursor, droid, codex, amp, etc.)
+      const source = s.source || "opencode";
+      if (!sourceMap[source]) {
+        sourceMap[source] = { sessions: 0, totalTokens: 0 };
+      }
+      sourceMap[source].sessions += 1;
+      sourceMap[source].totalTokens += s.totalTokens;
+    }
+
+    // Sort models by total tokens and take top 5
+    const topModels = Object.entries(modelMap)
+      .map(([model, stats]) => ({
+        model,
+        totalTokens: stats.totalTokens,
+        sessions: stats.sessions,
+      }))
+      .sort((a, b) => b.totalTokens - a.totalTokens)
+      .slice(0, 5);
+
+    // Sort sources by session count and take top 5
+    const topSources = Object.entries(sourceMap)
+      .map(([source, stats]) => ({
+        source,
+        sessions: stats.sessions,
+        totalTokens: stats.totalTokens,
+      }))
+      .sort((a, b) => b.sessions - a.sessions)
+      .slice(0, 5);
+
+    return {
+      topModels,
+      topSources,
+    };
+  },
+});

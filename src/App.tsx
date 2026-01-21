@@ -51,9 +51,9 @@ function CallbackHandler() {
     return <Navigate to="/login" replace />;
   }
 
-  // If authenticated, redirect to saved route or home
+  // If authenticated, redirect to saved route or dashboard
   if (isAuthenticated || user) {
-    const returnTo = sessionStorage.getItem(RETURN_TO_KEY) || "/";
+    const returnTo = sessionStorage.getItem(RETURN_TO_KEY) || "/dashboard";
     sessionStorage.removeItem(RETURN_TO_KEY);
     return <Navigate to={returnTo} replace />;
   }
@@ -197,7 +197,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      {/* Dashboard routes - both / and /dashboard show the same page */}
+      {/* Dashboard - protected */}
       <Route
         path="/dashboard"
         element={
@@ -206,14 +206,8 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <DashboardPage />
-          </ProtectedRoute>
-        }
-      />
+      {/* Homepage - public, shows LoginPage with dashboard link if logged in */}
+      <Route path="/" element={<LoginPage />} />
       {/* Catch-all 404 route */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

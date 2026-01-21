@@ -1,11 +1,11 @@
+import { useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useAuth as useAuthKit } from "@workos-inc/authkit-react";
-import { Navigate } from "react-router-dom";
-import { Loader2, Sun, Moon, Github, MessageCircleQuestion } from "lucide-react";
+import { Loader2, Sun, Moon, Github, MessageCircleQuestion, Trophy, Zap, MessagesSquare } from "lucide-react";
 import { useTheme } from "../lib/theme";
-
-// Storage key for preserving intended route across auth flow
-const RETURN_TO_KEY = "opensync_return_to";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { LegalModal, PRIVACY_POLICY, TERMS_OF_SERVICE } from "../components/LegalModal";
 
 const ASCII_LOGO = `
  ██████╗ ██████╗ ███████╗███╗   ██╗███████╗██╗   ██╗███╗   ██╗ ██████╗
@@ -47,6 +47,193 @@ function ThemeSwitcher() {
   );
 }
 
+// Legal links component for footer (Terms and Privacy)
+function LegalLinks() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+
+  return (
+    <>
+      <button
+        onClick={() => setShowTerms(true)}
+        className={`text-xs transition-colors ${
+          isDark
+            ? "text-zinc-600 hover:text-zinc-400"
+            : "text-[#8b7355] hover:text-[#6b6b6b]"
+        }`}
+      >
+        Terms
+      </button>
+      <span className={isDark ? "text-zinc-700" : "text-[#ccc7c0]"}>|</span>
+      <button
+        onClick={() => setShowPrivacy(true)}
+        className={`text-xs transition-colors ${
+          isDark
+            ? "text-zinc-600 hover:text-zinc-400"
+            : "text-[#8b7355] hover:text-[#6b6b6b]"
+        }`}
+      >
+        Privacy
+      </button>
+
+      {/* Legal modals */}
+      <LegalModal
+        isOpen={showTerms}
+        onClose={() => setShowTerms(false)}
+        title="Terms of Service"
+        content={TERMS_OF_SERVICE}
+      />
+      <LegalModal
+        isOpen={showPrivacy}
+        onClose={() => setShowPrivacy(false)}
+        title="Privacy Policy"
+        content={PRIVACY_POLICY}
+      />
+    </>
+  );
+}
+
+// Helper to format large numbers (e.g., 1234567 -> "1.2M")
+function formatNumber(num: number): string {
+  if (num >= 1_000_000) {
+    return (num / 1_000_000).toFixed(1) + "M";
+  }
+  if (num >= 1_000) {
+    return (num / 1_000).toFixed(1) + "k";
+  }
+  return num.toLocaleString();
+}
+
+// Helper to get display name for CLI source
+function getSourceDisplayName(source: string): string {
+  const names: Record<string, string> = {
+    opencode: "OpenCode",
+    "claude-code": "Claude Code",
+    cursor: "Cursor",
+    droid: "Droid",
+    codex: "Codex",
+    amp: "Amp",
+  };
+  return names[source] || source;
+}
+
+// Real-time platform leaderboard component (two boxes: Top Models, Top CLI)
+function PlatformLeaderboard({ isDark }: { isDark: boolean }) {
+  const platformStats = useQuery(api.analytics.publicPlatformStats);
+
+  // No spinner - Convex is real-time, data appears when ready
+  // Show the container with "No data yet" if empty
+  const topModels = platformStats?.topModels ?? [];
+  const topSources = platformStats?.topSources ?? [];
+
+  return (
+    <div className={`mt-8 rounded-lg border p-4 ${
+      isDark ? "border-zinc-800 bg-[#161616]" : "border-[#e6e4e1] bg-[#f5f3f0]"
+    }`}>
+      <h3 className={`text-sm font-medium mb-4 flex items-center gap-2 ${
+        isDark ? "text-zinc-300" : "text-[#1a1a1a]"
+      }`}>
+        <Zap className={`h-4 w-4 ${isDark ? "text-zinc-500" : "text-[#8b7355]"}`} />
+        Platform Stats
+        <span className={`ml-auto text-[10px] font-normal ${isDark ? "text-zinc-600" : "text-[#8b7355]"}`}>
+          real-time
+        </span>
+      </h3>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        {/* Top Models */}
+        <div className={`rounded-md border p-3 ${
+          isDark ? "border-zinc-800 bg-[#0E0E0E]" : "border-[#e6e4e1] bg-[#faf8f5]"
+        }`}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Trophy className={`h-3 w-3 ${isDark ? "text-amber-500" : "text-amber-600"}`} />
+            <p className={`text-[10px] uppercase tracking-wider ${
+              isDark ? "text-zinc-600" : "text-[#8b7355]"
+            }`}>
+              Top Models
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            {topModels.length === 0 ? (
+              <p className={`text-xs ${isDark ? "text-zinc-600" : "text-[#8b7355]"}`}>
+                No data yet
+              </p>
+            ) : (
+              topModels.map((item, index) => (
+                <div key={item.model} className="flex items-center justify-between">
+                  <span className={`text-xs truncate max-w-[140px] ${
+                    isDark ? "text-zinc-400" : "text-[#6b6b6b]"
+                  }`}>
+                    <span className={`mr-1.5 ${
+                      index === 0 
+                        ? isDark ? "text-amber-500" : "text-amber-600"
+                        : isDark ? "text-zinc-600" : "text-[#8b7355]"
+                    }`}>
+                      {index + 1}.
+                    </span>
+                    {item.model}
+                  </span>
+                  <span className={`text-[10px] tabular-nums ${
+                    isDark ? "text-zinc-500" : "text-[#8b7355]"
+                  }`}>
+                    {formatNumber(item.totalTokens)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Top CLI (sources: opencode, claude-code, cursor, droid, codex, amp, etc.) */}
+        <div className={`rounded-md border p-3 ${
+          isDark ? "border-zinc-800 bg-[#0E0E0E]" : "border-[#e6e4e1] bg-[#faf8f5]"
+        }`}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Zap className={`h-3 w-3 ${isDark ? "text-blue-400" : "text-[#EB5601]"}`} />
+            <p className={`text-[10px] uppercase tracking-wider ${
+              isDark ? "text-zinc-600" : "text-[#8b7355]"
+            }`}>
+              Top CLI
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            {topSources.length === 0 ? (
+              <p className={`text-xs ${isDark ? "text-zinc-600" : "text-[#8b7355]"}`}>
+                No data yet
+              </p>
+            ) : (
+              topSources.map((item, index) => (
+                <div key={item.source} className="flex items-center justify-between">
+                  <span className={`text-xs truncate max-w-[140px] ${
+                    isDark ? "text-zinc-400" : "text-[#6b6b6b]"
+                  }`}>
+                    <span className={`mr-1.5 ${
+                      index === 0 
+                        ? isDark ? "text-blue-400" : "text-[#EB5601]"
+                        : isDark ? "text-zinc-600" : "text-[#8b7355]"
+                    }`}>
+                      {index + 1}.
+                    </span>
+                    {getSourceDisplayName(item.source)}
+                  </span>
+                  <span className={`text-[10px] tabular-nums ${
+                    isDark ? "text-zinc-500" : "text-[#8b7355]"
+                  }`}>
+                    {item.sessions} sessions
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function LoginPage() {
   const { isAuthenticated, isLoading, signIn, signOut } = useAuth();
   // Get WorkOS user state directly to detect auth sync issues
@@ -64,13 +251,6 @@ export function LoginPage() {
         </div>
       </div>
     );
-  }
-
-  // If fully authenticated with both WorkOS and Convex, restore intended route
-  if (isAuthenticated) {
-    const returnTo = sessionStorage.getItem(RETURN_TO_KEY) || "/";
-    sessionStorage.removeItem(RETURN_TO_KEY);
-    return <Navigate to={returnTo} replace />;
   }
 
   // Check if user is logged into WorkOS but Convex auth failed
@@ -130,8 +310,43 @@ export function LoginPage() {
                 </p>
               </div>
 
-              {/* CTA */}
-              {authSyncIssue ? (
+              {/* CTA - different buttons based on auth state */}
+              {isAuthenticated ? (
+                // Logged in: show dashboard link
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <a
+                    href="/dashboard"
+                    className={`w-fit rounded-md border px-6 py-2.5 text-sm font-medium transition-colors ${
+                      isDark
+                        ? "border-zinc-600 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+                        : "border-[#8b7355] bg-[#ebe9e6] text-[#1a1a1a] hover:bg-[#e6e4e1]"
+                    }`}
+                  >
+                    Go to Dashboard
+                  </a>
+                  <a
+                    href="/docs"
+                    className={`w-fit rounded-md border px-6 py-2.5 text-sm font-medium transition-colors ${
+                      isDark
+                        ? "border-zinc-700 bg-[#0E0E0E] text-zinc-100 hover:border-zinc-600 hover:bg-zinc-900"
+                        : "border-[#e6e4e1] bg-[#faf8f5] text-[#1a1a1a] hover:border-[#8b7355] hover:bg-[#f5f3f0]"
+                    }`}
+                  >
+                    Docs
+                  </a>
+                  <button
+                    onClick={signOut}
+                    className={`w-fit rounded-md border px-6 py-2.5 text-sm font-medium transition-colors ${
+                      isDark
+                        ? "border-zinc-700 bg-[#0E0E0E] text-zinc-100 hover:border-zinc-600 hover:bg-zinc-900"
+                        : "border-[#e6e4e1] bg-[#faf8f5] text-[#1a1a1a] hover:border-[#8b7355] hover:bg-[#f5f3f0]"
+                    }`}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              ) : authSyncIssue ? (
+                // WorkOS user but Convex sync failed
                 <div className="mt-8 space-y-3">
                   <div className={`rounded-md border px-4 py-3 ${
                     isDark 
@@ -169,6 +384,7 @@ export function LoginPage() {
                   </div>
                 </div>
               ) : (
+                // Not logged in: show sign in
                 <div className="mt-8 flex flex-wrap gap-3">
                   <button
                     onClick={signIn}
@@ -237,6 +453,9 @@ export function LoginPage() {
                   .
                 </p>
               </div>
+
+              {/* Real-time Platform Stats - same width as trust box */}
+              <PlatformLeaderboard isDark={isDark} />
             </div>
 
             {/* Right side: Mini dashboard mock (desktop only) + Getting started (all screens) */}
@@ -553,10 +772,24 @@ export function LoginPage() {
             >
               <MessageCircleQuestion className="h-4 w-4" />
             </a>
+            <a
+              href="https://github.com/waynesutton/opensync/discussions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`p-1.5 rounded-md transition-colors ${
+                isDark
+                  ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                  : "text-[#6b6b6b] hover:text-[#1a1a1a] hover:bg-[#ebe9e6]"
+              }`}
+              title="Join Discussions"
+            >
+              <MessagesSquare className="h-4 w-4" />
+            </a>
           </div>
 
-          {/* Theme switcher - positioned in bottom right */}
-          <div className="fixed bottom-4 right-4">
+          {/* Terms, Privacy, and Theme switcher - positioned in bottom right */}
+          <div className="fixed bottom-4 right-4 flex items-center gap-2">
+            <LegalLinks />
             <ThemeSwitcher />
           </div>
         </footer>

@@ -75,7 +75,7 @@ export const generateForSession = internalAction({
   },
 });
 
-// Store embedding
+// Store embedding with idempotency check
 export const store = internalMutation({
   args: {
     sessionId: v.id("sessions"),
@@ -85,24 +85,38 @@ export const store = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Delete old embedding
+    // Check for existing embedding using index
     const existing = await ctx.db
       .query("sessionEmbeddings")
       .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
       .first();
 
-    if (existing) {
-      await ctx.db.delete(existing._id);
+    // Idempotency check: early return if already up to date
+    if (existing && existing.textHash === args.textHash) {
+      return null;
     }
 
-    // Insert new
-    await ctx.db.insert("sessionEmbeddings", {
-      sessionId: args.sessionId,
-      userId: args.userId,
-      embedding: args.embedding,
-      textHash: args.textHash,
-      createdAt: Date.now(),
-    });
+    const now = Date.now();
+
+    if (existing) {
+      // Replace existing embedding with new data
+      await ctx.db.replace(existing._id, {
+        sessionId: args.sessionId,
+        userId: args.userId,
+        embedding: args.embedding,
+        textHash: args.textHash,
+        createdAt: now,
+      });
+    } else {
+      // Insert new embedding
+      await ctx.db.insert("sessionEmbeddings", {
+        sessionId: args.sessionId,
+        userId: args.userId,
+        embedding: args.embedding,
+        textHash: args.textHash,
+        createdAt: now,
+      });
+    }
 
     return null;
   },
@@ -289,7 +303,7 @@ export const getByMessageAndHash = internalQuery({
   },
 });
 
-// Store message embedding
+// Store message embedding with idempotency check
 export const storeMessageEmbedding = internalMutation({
   args: {
     messageId: v.id("messages"),
@@ -300,25 +314,40 @@ export const storeMessageEmbedding = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Delete old embedding if exists
+    // Check for existing embedding using index
     const existing = await ctx.db
       .query("messageEmbeddings")
       .withIndex("by_message", (q) => q.eq("messageId", args.messageId))
       .first();
 
-    if (existing) {
-      await ctx.db.delete(existing._id);
+    // Idempotency check: early return if already up to date
+    if (existing && existing.textHash === args.textHash) {
+      return null;
     }
 
-    // Insert new embedding
-    await ctx.db.insert("messageEmbeddings", {
-      messageId: args.messageId,
-      sessionId: args.sessionId,
-      userId: args.userId,
-      embedding: args.embedding,
-      textHash: args.textHash,
-      createdAt: Date.now(),
-    });
+    const now = Date.now();
+
+    if (existing) {
+      // Replace existing embedding with new data
+      await ctx.db.replace(existing._id, {
+        messageId: args.messageId,
+        sessionId: args.sessionId,
+        userId: args.userId,
+        embedding: args.embedding,
+        textHash: args.textHash,
+        createdAt: now,
+      });
+    } else {
+      // Insert new embedding
+      await ctx.db.insert("messageEmbeddings", {
+        messageId: args.messageId,
+        sessionId: args.sessionId,
+        userId: args.userId,
+        embedding: args.embedding,
+        textHash: args.textHash,
+        createdAt: now,
+      });
+    }
 
     return null;
   },

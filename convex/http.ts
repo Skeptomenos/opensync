@@ -172,7 +172,7 @@ http.route({
   }),
 });
 
-// Batch sync
+// Batch sync - uses batch mutations for fewer write conflicts
 http.route({
   path: "/sync/batch",
   method: "POST",
@@ -182,33 +182,43 @@ http.route({
 
     try {
       const body = await request.json();
-      const results = { sessions: 0, messages: 0, errors: [] as string[] };
+      const errors: Array<string> = [];
+      let sessionCount = 0;
+      let messageCount = 0;
 
-      for (const session of body.sessions || []) {
+      // Batch upsert sessions in a single mutation
+      if (body.sessions && body.sessions.length > 0) {
         try {
-          await ctx.runMutation(internal.sessions.upsert, {
+          const result = await ctx.runMutation(internal.sessions.batchUpsert, {
             userId: auth.user._id,
-            ...session,
+            sessions: body.sessions,
           });
-          results.sessions++;
+          sessionCount = result.inserted + result.updated;
         } catch (e) {
-          results.errors.push(`Session ${session.externalId}: ${e}`);
+          errors.push(`Sessions batch error: ${e}`);
         }
       }
 
-      for (const message of body.messages || []) {
+      // Batch upsert messages in a single mutation
+      if (body.messages && body.messages.length > 0) {
         try {
-          await ctx.runMutation(internal.messages.upsert, {
+          const result = await ctx.runMutation(internal.messages.batchUpsert, {
             userId: auth.user._id,
-            ...message,
+            messages: body.messages,
           });
-          results.messages++;
+          messageCount = result.inserted + result.updated;
+          errors.push(...result.errors);
         } catch (e) {
-          results.errors.push(`Message ${message.externalId}: ${e}`);
+          errors.push(`Messages batch error: ${e}`);
         }
       }
 
-      return json({ ok: true, ...results });
+      return json({
+        ok: true,
+        sessions: sessionCount,
+        messages: messageCount,
+        errors,
+      });
     } catch (e) {
       return json({ error: String(e) }, 500);
     }

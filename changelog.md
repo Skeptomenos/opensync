@@ -8,8 +8,46 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Terms of Service and Privacy Policy modal links in homepage footer (left of theme switcher)
+- Legal section in Settings Profile tab with Terms and Privacy buttons
+- LegalModal component with dark mode styling, markdown rendering, ESC/X to close
+- Full Privacy Policy and Terms of Service content embedded in app
+
+### Changed
+
+- Homepage (/) is now public: logged-in users see "Go to Dashboard" button instead of auto-redirect
+- Logged-in users can visit homepage while staying authenticated
+- OAuth callback now redirects to /dashboard instead of / after sign-in
+- Removed auto-redirect from LoginPage when authenticated
+- Settings back link now navigates to /dashboard instead of homepage
+
+### Added
+
+- Docs page search with instant typeahead results and keyboard navigation
+- Search indexes all sections, subsections, and keywords for quick lookup
+- Cmd/Ctrl+K keyboard shortcut to focus search on Docs page
+- Search navigates directly to section via hash anchor
+- Search available in header (desktop) and sidebar (mobile)
+
+### Fixed
+
+- Fixed write conflicts in messages:upsert, sessions:upsert, and embeddings:store mutations
+- Added 5-10 second dedup windows to prevent rapid updates causing OCC conflicts
+- Refactored messages:upsert to combine session patches into single write operation
+- Added Promise.all for parallel parts deletion/insertion to reduce conflict windows
+- Created batch mutations (batchUpsert) for sessions and messages to reduce /sync/batch conflicts
+- Updated embeddings:store to use replace pattern instead of delete+insert
+- Added idempotency checks with early returns when no meaningful changes detected
+
+### Added
+
+- Real-time Platform Stats leaderboard on Login/homepage with Top Models and Top CLI boxes
+- Top CLI shows sources (OpenCode, Claude Code, Cursor, Droid, Codex, Amp) sorted by session count
+- No loading spinner (Convex real-time updates appear instantly)
+- Public platform stats API query (publicPlatformStats, no auth required) for aggregate platform metrics
 - Discord community icon in Login page footer (links to convex.dev/community)
 - Support icon in Login page footer (links to GitHub issues page)
+- Discussions icon in Login page footer (links to GitHub Discussions)
 
 ### Fixed
 

@@ -27,14 +27,14 @@ Backend functions and schema.
 | `auth.config.ts` | WorkOS JWT validation configuration |
 | `convex.config.ts` | Convex app configuration |
 | `users.ts` | User queries/mutations: getOrCreate, me, stats, API key management, deleteAllData, deleteAccount (deletes Convex first, then WorkOS to prevent partial deletion) |
-| `sessions.ts` | Session CRUD: list, get, getPublic, setVisibility, remove, getMarkdown, upsert (with source param), listExternalIds, exportAllDataCSV |
-| `messages.ts` | Message mutations: upsert with parts and source parameter for auto-created sessions |
-| `analytics.ts` | Analytics queries with source filtering: dailyStats, modelStats, projectStats, providerStats, summaryStats, sessionsWithDetails, sourceStats. Includes inferProvider helper for model-based provider detection |
+| `sessions.ts` | Session CRUD: list, get, getPublic, setVisibility, remove, getMarkdown, upsert (with 10s dedup window, idempotency), batchUpsert, listExternalIds, exportAllDataCSV |
+| `messages.ts` | Message mutations: upsert (with 5s dedup, combined session patch, parallel parts ops), batchUpsert for bulk sync |
+| `analytics.ts` | Analytics queries with source filtering: dailyStats, modelStats, projectStats, providerStats, summaryStats, sessionsWithDetails, sourceStats, publicPlatformStats (no auth, for homepage leaderboard). Includes inferProvider helper for model-based provider detection |
 | `search.ts` | Full-text and semantic search: searchSessions, searchSessionsPaginated, searchMessages, searchMessagesPaginated, semanticSearch, hybridSearch, semanticSearchMessages, hybridSearchMessages |
-| `embeddings.ts` | Vector embedding generation for session-level and message-level semantic search |
+| `embeddings.ts` | Vector embedding generation with idempotency checks and replace pattern for session-level and message-level semantic search |
 | `evals.ts` | Eval management: setEvalReady, listEvalSessions, getEvalTags, generateEvalExport (DeepEval JSON, OpenAI JSONL, Filesystem formats) |
 | `api.ts` | Internal API functions: listSessions, getSession, fullTextSearch, exportSession, getStats, semanticSearch, hybridSearch, getContext |
-| `http.ts` | HTTP endpoints: /sync/* (session with source param, message, batch, sessions/list), /api/*, /health |
+| `http.ts` | HTTP endpoints: /sync/* (session, message, batch using batchUpsert mutations, sessions/list), /api/*, /health |
 | `rag.ts` | RAG retrieval functions for context engineering |
 | `README.md` | Convex backend documentation |
 
@@ -45,7 +45,7 @@ React frontend application.
 | File | Description |
 |------|-------------|
 | `main.tsx` | App entry point with providers (Convex, AuthKit, Router), devMode config for production session persistence |
-| `App.tsx` | Route definitions (/dashboard, /profile, /settings, /evals, /context), protected route wrapper with sync timeout (5s max), CallbackHandler for OAuth code exchange with 10s timeout, return-to URL preservation |
+| `App.tsx` | Route definitions: public routes (/, /login, /docs, /s/:slug), protected routes (/dashboard, /profile, /settings, /evals, /context). ProtectedRoute wrapper with sync timeout (5s max), CallbackHandler for OAuth code exchange with 10s timeout redirecting to /dashboard, return-to URL preservation |
 | `index.css` | Global styles, Tailwind imports, dark theme tokens, chart utilities, scrollbar-hide utility |
 | `vite-env.d.ts` | Vite client type declarations for import.meta.env |
 
@@ -53,10 +53,10 @@ React frontend application.
 
 | File | Description |
 |------|-------------|
-| `Login.tsx` | Login page with WorkOS AuthKit integration, privacy messaging, getting started section with plugin links (mobile-visible), tan mode theme support with footer theme switcher, footer icons (GitHub, Discord community, Support issues), updated mockup with view tabs and OC/CC source badges (desktop-only), feature list with Sync/Search/Private/Tag/Export/Delete keywords and eval datasets tagline, Watch the demo link, trust message with cloud/local deployment info |
+| `Login.tsx` | Public homepage with WorkOS AuthKit integration. Shows "Go to Dashboard" button when logged in (no auto-redirect), "Sign in" when logged out. Includes privacy messaging, getting started section with plugin links (mobile-visible), tan mode theme support with footer (theme switcher, Terms/Privacy links), footer icons (GitHub, Discord, Support, Discussions), updated mockup with view tabs and OC/CC source badges (desktop-only), feature list with Sync/Search/Private/Tag/Export/Delete keywords and eval datasets tagline, Watch the demo link, trust message with cloud/local deployment info, real-time Platform Stats leaderboard (Top Models, Top CLI) above Open Source footer link |
 | `Dashboard.tsx` | Main dashboard with source filter dropdown (hidden on small mobile), source badges (CC/OC), eval toggle button, Context link with search icon, setup banner for new users (loading-aware, no flash on refresh), mobile-optimized header/filters/session rows, URL param support for deep linking from Context search (?session=id), Cmd/Ctrl+K shortcut to open Context search, and four views: Overview (responsive stat grids), Sessions (mobile-friendly list with stacked layout), Evals (eval-ready sessions with export modal), Analytics (responsive breakdowns with collapsible filters) |
-| `Settings.tsx` | Tabbed settings: API Access (keys, endpoints), Profile (collapsible section for privacy, account info, Danger Zone with delete data/account options) |
-| `Docs.tsx` | Comprehensive documentation page with left sidebar navigation (hidden scrollbar), right table of contents, anchor tags, copy/view as markdown buttons, mobile responsive, works with both dark/tan themes. Covers use hosted version (with features, plugin install, login/sync), self-hosting requirements with cloud and 100% local deployment options, quick start, dashboard features, OpenCode plugin, Claude Code plugin, API reference, search types, authentication, hosting, fork guide, troubleshooting, and FAQ. Links to opencode.ai and claude.ai in hero and plugin sections. |
+| `Settings.tsx` | Tabbed settings: API Access (keys, endpoints), Profile (collapsible section for privacy, account info, Legal section with Terms/Privacy links, Danger Zone with delete data/account options). Back link navigates to /dashboard |
+| `Docs.tsx` | Comprehensive documentation page with instant typeahead search (Cmd/Ctrl+K shortcut), left sidebar navigation (hidden scrollbar), right table of contents, anchor tags, copy/view as markdown buttons, mobile responsive, works with both dark/tan themes. Search indexes all sections with keywords for quick navigation to any topic via hash anchor. Covers use hosted version (with features, plugin install, login/sync), self-hosting requirements with cloud and 100% local deployment options, quick start, dashboard features, OpenCode plugin, Claude Code plugin, API reference, search types, authentication, hosting, fork guide, troubleshooting, and FAQ. Links to opencode.ai and claude.ai in hero and plugin sections. |
 | `PublicSession.tsx` | Public session viewer for shared sessions (/s/:slug) with dark/tan theme toggle, content normalization for multi-plugin support, textContent fallback for empty parts |
 | `Evals.tsx` | Evals page with eval-ready session list, stats, export modal (DeepEval JSON, OpenAI JSONL, Filesystem formats) |
 | `Context.tsx` | Dedicated context search page (/context) with paginated full-text search for sessions and messages, slide-over panel for viewing session details without navigation, message highlighting for search results, no OpenAI key required |
@@ -70,6 +70,7 @@ React frontend application.
 | `SessionViewer.tsx` | Session detail view with messages and actions |
 | `Charts.tsx` | Reusable chart components: BarChart, AreaChart, DonutChart, Sparkline, ProgressBar, StatCard, DataTable, FilterPill, StackedBarChart, UsageCreditBar, ConsumptionBreakdown |
 | `ConfirmModal.tsx` | Custom confirmation modal with theme support, replaces browser confirm() dialogs |
+| `LegalModal.tsx` | Dark mode modal for displaying Terms of Service and Privacy Policy with markdown rendering, ESC/X to close |
 
 ### src/lib/
 
@@ -121,7 +122,7 @@ Cursor IDE rules for AI assistance.
 | `write.mdc` | Writing style guide |
 | `convex2.mdc` | Convex best practices |
 | `rulesforconvex.mdc` | Additional Convex guidelines |
-| `convex-write-conflicts.mdc` | Write conflict prevention patterns |
+| `convex-write-conflicts.mdc` | Write conflict prevention patterns with OpenSync-specific sync patterns (dedup windows, batch mutations, replace pattern) |
 | `gitruels.mdc` | Git safety rules |
 | `sec-check.mdc` | Security checklist |
 | `task.mdc` | Task management guidelines |

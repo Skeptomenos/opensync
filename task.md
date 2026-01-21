@@ -6,6 +6,14 @@ OpenSync supports two AI coding tools: **OpenCode** and **Claude Code**.
 
 ## Active Tasks
 
+- [ ] (add next task here)
+
+## Completed
+
+- [x] Settings back link navigates to /dashboard instead of homepage
+- [x] Terms of Service and Privacy Policy modals in homepage footer and Settings page
+- [x] Public homepage: logged-in users stay on homepage with "Go to Dashboard" button, no auto-redirect
+- [x] Docs page search with typeahead (client-side, instant results, Cmd+K shortcut, hash navigation)
 - [x] Fix filter UI alignment
 - [x] Add API rename and Claude API config
 - [x] Notifications UI match existing design
@@ -14,8 +22,6 @@ OpenSync supports two AI coding tools: **OpenCode** and **Claude Code**.
 - [x] Pagination for large session lists
 - [x] update docs
 - [x] Delete user data and profile option
-
-## Completed
 
 - [x] Database schema design (users, sessions, messages, parts, embeddings)
 - [x] WorkOS AuthKit integration
@@ -90,6 +96,31 @@ OpenSync supports two AI coding tools: **OpenCode** and **Claude Code**.
 ## In Progress
 
 None currently.
+
+## Recently Completed (Write Conflict Fixes)
+
+- [x] Fixed write conflicts in Convex mutations causing OCC retries
+  - Added 5-second dedup window to messages:upsert for idempotency
+  - Added 10-second dedup window to sessions:upsert for idempotency
+  - Refactored messages:upsert to combine multiple session patches into single write
+  - Added Promise.all for parallel parts deletion and insertion
+  - Added idempotency checks to embeddings:store and storeMessageEmbedding (replace pattern)
+  - Created sessions:batchUpsert mutation for bulk session sync
+  - Created messages:batchUpsert mutation for bulk message sync
+  - Updated /sync/batch endpoint to use batch mutations instead of loops
+  - Updated convex-write-conflicts.mdc with OpenSync-specific patterns
+
+## Recently Completed (Platform Stats Leaderboard)
+
+- [x] Real-time Platform Stats leaderboard on Login/homepage
+  - Top 5 models by total tokens used
+  - Token breakdown (prompt vs completion with visual progress bar)
+  - Total messages count across all sessions
+  - Positioned above Open Source footer link
+  - Shows 0 values when database is empty (no hiding)
+  - Updates in real-time via Convex when data syncs
+  - Supports both dark and tan themes
+  - publicPlatformStats query (no auth required)
 
 ## Recently Completed (Footer Icons)
 
@@ -310,6 +341,7 @@ Deferred. See [PRD-FEATURES.md](docs/PRD-FEATURES.md).
 - [ ] Add rate limiting to API endpoints
 - [ ] Add request validation middleware
 - [x] Migration script for source field on existing sessions (handled via default value in queries)
+- [x] Write conflict prevention (dedup windows, batch mutations, idempotency checks)
 
 ## Plugin Repos
 

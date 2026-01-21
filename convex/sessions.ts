@@ -289,6 +289,9 @@ export const getMarkdown = query({
   },
 });
 
+// Dedup window to prevent rapid updates causing write conflicts
+const SESSION_DEDUP_MS = 10 * 1000;
+
 // Internal: upsert session from sync
 export const upsert = internalMutation({
   args: {
@@ -305,7 +308,11 @@ export const upsert = internalMutation({
     cost: v.optional(v.number()),
     durationMs: v.optional(v.number()),
   },
+  returns: v.id("sessions"),
   handler: async (ctx, args) => {
+    const now = Date.now();
+    
+    // Find existing session using index
     const existing = await ctx.db
       .query("sessions")
       .withIndex("by_user_external", (q) =>
@@ -313,31 +320,69 @@ export const upsert = internalMutation({
       )
       .first();
 
-    const now = Date.now();
     const promptTokens = args.promptTokens ?? 0;
     const completionTokens = args.completionTokens ?? 0;
-    // Default source to "opencode" for backward compatibility
     const source = args.source || "opencode";
 
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        title: args.title ?? existing.title,
-        projectPath: args.projectPath ?? existing.projectPath,
-        projectName: args.projectName ?? existing.projectName,
-        model: args.model ?? existing.model,
-        provider: args.provider ?? existing.provider,
-        source: args.source ?? existing.source ?? "opencode",
-        promptTokens: promptTokens || existing.promptTokens,
-        completionTokens: completionTokens || existing.completionTokens,
-        totalTokens: (promptTokens + completionTokens) || existing.totalTokens,
-        cost: args.cost ?? existing.cost,
-        durationMs: args.durationMs ?? existing.durationMs,
-        searchableText: args.title ?? existing.searchableText,
-        updatedAt: now,
-      });
+      // Idempotency check: skip if recently updated with same key values
+      const noMeaningfulChanges =
+        args.title === existing.title &&
+        args.model === existing.model &&
+        args.projectPath === existing.projectPath &&
+        (promptTokens === 0 || promptTokens === existing.promptTokens) &&
+        (completionTokens === 0 || completionTokens === existing.completionTokens);
+
+      if (noMeaningfulChanges && now - existing.updatedAt < SESSION_DEDUP_MS) {
+        // Early return - no changes needed within dedup window
+        return existing._id;
+      }
+
+      // Build update object only with changed fields
+      const updates: Record<string, unknown> = { updatedAt: now };
+
+      if (args.title !== undefined && args.title !== existing.title) {
+        updates.title = args.title;
+        updates.searchableText = args.title;
+      }
+      if (args.projectPath !== undefined && args.projectPath !== existing.projectPath) {
+        updates.projectPath = args.projectPath;
+      }
+      if (args.projectName !== undefined && args.projectName !== existing.projectName) {
+        updates.projectName = args.projectName;
+      }
+      if (args.model !== undefined && args.model !== existing.model) {
+        updates.model = args.model;
+      }
+      if (args.provider !== undefined && args.provider !== existing.provider) {
+        updates.provider = args.provider;
+      }
+      if (args.source !== undefined && args.source !== existing.source) {
+        updates.source = args.source;
+      }
+      if (promptTokens > 0 && promptTokens !== existing.promptTokens) {
+        updates.promptTokens = promptTokens;
+      }
+      if (completionTokens > 0 && completionTokens !== existing.completionTokens) {
+        updates.completionTokens = completionTokens;
+      }
+      if (promptTokens > 0 || completionTokens > 0) {
+        const newPrompt = promptTokens || existing.promptTokens;
+        const newCompletion = completionTokens || existing.completionTokens;
+        updates.totalTokens = newPrompt + newCompletion;
+      }
+      if (args.cost !== undefined && args.cost !== existing.cost) {
+        updates.cost = args.cost;
+      }
+      if (args.durationMs !== undefined && args.durationMs !== existing.durationMs) {
+        updates.durationMs = args.durationMs;
+      }
+
+      await ctx.db.patch(existing._id, updates);
       return existing._id;
     }
 
+    // Insert new session
     return await ctx.db.insert("sessions", {
       userId: args.userId,
       externalId: args.externalId,
@@ -500,5 +545,122 @@ export const exportAllDataCSV = query({
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
 
     return csv;
+  },
+});
+
+// Session input type for batch upsert
+const sessionInputValidator = v.object({
+  externalId: v.string(),
+  title: v.optional(v.string()),
+  projectPath: v.optional(v.string()),
+  projectName: v.optional(v.string()),
+  model: v.optional(v.string()),
+  provider: v.optional(v.string()),
+  source: v.optional(v.string()),
+  promptTokens: v.optional(v.number()),
+  completionTokens: v.optional(v.number()),
+  cost: v.optional(v.number()),
+  durationMs: v.optional(v.number()),
+});
+
+// Internal: batch upsert sessions in a single transaction
+export const batchUpsert = internalMutation({
+  args: {
+    userId: v.id("users"),
+    sessions: v.array(sessionInputValidator),
+  },
+  returns: v.object({
+    inserted: v.number(),
+    updated: v.number(),
+    skipped: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    // Process sessions in parallel using Promise.all
+    const results = await Promise.all(
+      args.sessions.map(async (session) => {
+        // Find existing session
+        const existing = await ctx.db
+          .query("sessions")
+          .withIndex("by_user_external", (q) =>
+            q.eq("userId", args.userId).eq("externalId", session.externalId)
+          )
+          .first();
+
+        const promptTokens = session.promptTokens ?? 0;
+        const completionTokens = session.completionTokens ?? 0;
+        const source = session.source || "opencode";
+
+        if (existing) {
+          // Idempotency check
+          const noChanges =
+            session.title === existing.title &&
+            session.model === existing.model &&
+            (promptTokens === 0 || promptTokens === existing.promptTokens);
+
+          if (noChanges && now - existing.updatedAt < SESSION_DEDUP_MS) {
+            return { action: "skipped" as const };
+          }
+
+          // Build minimal update
+          const updates: Record<string, unknown> = { updatedAt: now };
+          if (session.title !== undefined) updates.title = session.title;
+          if (session.projectPath !== undefined) updates.projectPath = session.projectPath;
+          if (session.projectName !== undefined) updates.projectName = session.projectName;
+          if (session.model !== undefined) updates.model = session.model;
+          if (session.provider !== undefined) updates.provider = session.provider;
+          if (session.source !== undefined) updates.source = session.source;
+          if (promptTokens > 0) {
+            updates.promptTokens = promptTokens;
+            updates.totalTokens = promptTokens + (session.completionTokens || existing.completionTokens);
+          }
+          if (completionTokens > 0) {
+            updates.completionTokens = completionTokens;
+            updates.totalTokens = (session.promptTokens || existing.promptTokens) + completionTokens;
+          }
+          if (session.cost !== undefined) updates.cost = session.cost;
+          if (session.durationMs !== undefined) updates.durationMs = session.durationMs;
+
+          await ctx.db.patch(existing._id, updates);
+          return { action: "updated" as const };
+        }
+
+        // Insert new session
+        await ctx.db.insert("sessions", {
+          userId: args.userId,
+          externalId: session.externalId,
+          title: session.title,
+          projectPath: session.projectPath,
+          projectName: session.projectName,
+          model: session.model,
+          provider: session.provider,
+          source,
+          promptTokens,
+          completionTokens,
+          totalTokens: promptTokens + completionTokens,
+          cost: session.cost ?? 0,
+          durationMs: session.durationMs,
+          isPublic: false,
+          searchableText: session.title,
+          messageCount: 0,
+          createdAt: now,
+          updatedAt: now,
+        });
+        return { action: "inserted" as const };
+      })
+    );
+
+    // Count results
+    for (const result of results) {
+      if (result.action === "inserted") inserted++;
+      else if (result.action === "updated") updated++;
+      else skipped++;
+    }
+
+    return { inserted, updated, skipped };
   },
 });

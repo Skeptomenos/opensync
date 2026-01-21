@@ -624,137 +624,175 @@ Some write conflicts are expected and acceptable:
 
 In these cases, ensure your mutations are idempotent and let Convex's retry mechanism handle the conflicts. Add user-facing retry logic if needed.
 
-## App-Specific Patterns: Markdown Blog
+## App-Specific Patterns: OpenSync Session Sync
 
-This app uses specific patterns to avoid write conflicts in the `activeSessions` table for real-time visitor tracking.
+This app syncs coding sessions from plugins (opencode-sync, claude-code-sync) via HTTP endpoints. The main conflict sources are:
 
-### Heartbeat Mutation with Dedup Window
+1. **Rapid message syncing** - Multiple messages synced in quick succession
+2. **Session auto-creation** - Out-of-order message sync creates sessions
+3. **Embedding generation** - Concurrent embedding updates for same session
 
-The `stats:heartbeat` mutation uses a 10-second dedup window to prevent rapid updates:
+### Session Upsert with Dedup Window
+
+The `sessions:upsert` mutation uses a 10-second dedup window:
 
 ```typescript
-// convex/stats.ts
-const HEARTBEAT_DEDUP_MS = 10 * 1000;
+// convex/sessions.ts
+const SESSION_DEDUP_MS = 10 * 1000;
 
-export const heartbeat = mutation({
-  args: {
-    sessionId: v.string(),
-    currentPath: v.string(),
-  },
-  returns: v.null(),
+export const upsert = internalMutation({
+  args: { userId: v.id("users"), externalId: v.string(), ... },
+  returns: v.id("sessions"),
   handler: async (ctx, args) => {
     const now = Date.now();
-
-    // Find existing session by sessionId using index
-    const existingSession = await ctx.db
-      .query("activeSessions")
-      .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+    
+    const existing = await ctx.db
+      .query("sessions")
+      .withIndex("by_user_external", (q) =>
+        q.eq("userId", args.userId).eq("externalId", args.externalId)
+      )
       .first();
 
-    if (existingSession) {
-      // Early return if same path and recently updated (idempotent)
-      if (
-        existingSession.currentPath === args.currentPath &&
-        now - existingSession.lastSeen < HEARTBEAT_DEDUP_MS
-      ) {
-        return null;
+    if (existing) {
+      // Idempotency: skip if recently updated with same values
+      const noMeaningfulChanges =
+        args.title === existing.title &&
+        args.model === existing.model;
+
+      if (noMeaningfulChanges && now - existing.updatedAt < SESSION_DEDUP_MS) {
+        return existing._id; // Early return
       }
 
-      // Patch directly with new data
-      await ctx.db.patch(existingSession._id, {
-        currentPath: args.currentPath,
-        lastSeen: now,
-      });
+      // Single patch with only changed fields
+      await ctx.db.patch(existing._id, { ...updates, updatedAt: now });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("sessions", { ... });
+  },
+});
+```
+
+### Message Upsert with Combined Session Patch
+
+The `messages:upsert` mutation combines all session updates into one patch:
+
+```typescript
+// convex/messages.ts
+const MESSAGE_DEDUP_MS = 5 * 1000;
+
+export const upsert = internalMutation({
+  args: { userId: v.id("users"), sessionExternalId: v.string(), ... },
+  returns: v.id("messages"),
+  handler: async (ctx, args) => {
+    // Check message exists FIRST (idempotency)
+    const existing = await ctx.db
+      .query("messages")
+      .withIndex("by_external_id", (q) => q.eq("externalId", args.externalId))
+      .first();
+
+    if (existing && now - existing.createdAt < MESSAGE_DEDUP_MS) {
+      return existing._id; // Early return for dedup
+    }
+
+    // Store session data to avoid re-reading
+    let sessionId = session._id;
+    let sessionPromptTokens = session.promptTokens;
+    // ... more cached values
+
+    // Delete parts in parallel
+    if (existingParts.length > 0) {
+      await Promise.all(existingParts.map((p) => ctx.db.delete(p._id)));
+    }
+
+    // Insert parts in parallel
+    await Promise.all(
+      args.parts.map((part, i) =>
+        ctx.db.insert("parts", { messageId, type: part.type, ... })
+      )
+    );
+
+    // SINGLE combined patch for session (not multiple patches)
+    await ctx.db.patch(sessionId, {
+      messageCount: sessionMessageCount + 1,
+      promptTokens: newPromptTokens,
+      completionTokens: newCompletionTokens,
+      totalTokens: newTotal,
+      searchableText: newSearchable,
+      updatedAt: now,
+    });
+
+    return messageId;
+  },
+});
+```
+
+### Batch Upsert for Bulk Sync
+
+The `/sync/batch` endpoint uses batch mutations instead of loops:
+
+```typescript
+// convex/http.ts
+http.route({
+  path: "/sync/batch",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    // Batch upsert sessions in ONE mutation
+    const sessionResult = await ctx.runMutation(internal.sessions.batchUpsert, {
+      userId: auth.user._id,
+      sessions: body.sessions,
+    });
+
+    // Batch upsert messages in ONE mutation
+    const messageResult = await ctx.runMutation(internal.messages.batchUpsert, {
+      userId: auth.user._id,
+      messages: body.messages,
+    });
+
+    return json({ ok: true, sessions: sessionResult.inserted, messages: messageResult.inserted });
+  }),
+});
+```
+
+### Embedding Store with Replace Pattern
+
+The `embeddings:store` mutation uses replace instead of delete+insert:
+
+```typescript
+// convex/embeddings.ts
+export const store = internalMutation({
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("sessionEmbeddings")
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .first();
+
+    // Idempotency: early return if hash unchanged
+    if (existing && existing.textHash === args.textHash) {
       return null;
     }
 
-    // Create new session only if none exists
-    await ctx.db.insert("activeSessions", {
-      sessionId: args.sessionId,
-      currentPath: args.currentPath,
-      lastSeen: now,
-    });
+    if (existing) {
+      // Replace instead of delete+insert
+      await ctx.db.replace(existing._id, { ...args, createdAt: now });
+    } else {
+      await ctx.db.insert("sessionEmbeddings", { ...args, createdAt: now });
+    }
 
     return null;
   },
 });
 ```
 
-### Frontend Debouncing with Refs
-
-The `usePageTracking` hook uses refs to prevent duplicate heartbeat calls:
-
-```typescript
-// src/hooks/usePageTracking.ts
-const HEARTBEAT_DEBOUNCE_MS = 5 * 1000;
-
-export function usePageTracking(): void {
-  const heartbeatMutation = useMutation(api.stats.heartbeat);
-
-  // Track heartbeat state to prevent duplicate calls
-  const isHeartbeatPending = useRef(false);
-  const lastHeartbeatTime = useRef(0);
-  const lastHeartbeatPath = useRef<string | null>(null);
-
-  const sendHeartbeat = useCallback(
-    async (path: string) => {
-      const sessionId = sessionIdRef.current;
-      if (!sessionId) return;
-
-      const now = Date.now();
-
-      // Skip if heartbeat is already pending
-      if (isHeartbeatPending.current) {
-        return;
-      }
-
-      // Skip if same path and sent recently (debounce)
-      if (
-        lastHeartbeatPath.current === path &&
-        now - lastHeartbeatTime.current < HEARTBEAT_DEBOUNCE_MS
-      ) {
-        return;
-      }
-
-      isHeartbeatPending.current = true;
-      lastHeartbeatTime.current = now;
-      lastHeartbeatPath.current = path;
-
-      try {
-        await heartbeatMutation({
-          sessionId,
-          currentPath: path,
-        });
-      } catch {
-        // Silently fail
-      } finally {
-        isHeartbeatPending.current = false;
-      }
-    },
-    [heartbeatMutation],
-  );
-
-  // Send heartbeat on interval and path change
-  useEffect(() => {
-    const path = location.pathname;
-    sendHeartbeat(path);
-
-    const intervalId = setInterval(() => {
-      sendHeartbeat(path);
-    }, HEARTBEAT_INTERVAL_MS);
-
-    return () => clearInterval(intervalId);
-  }, [location.pathname, sendHeartbeat]);
-}
-```
-
 ### Key Patterns Used
 
-1. **Backend idempotency**: Early return when session was updated within 10 seconds with same path
-2. **Frontend debouncing**: 5-second debounce window using refs
-3. **Pending state tracking**: `isHeartbeatPending` ref prevents overlapping calls
-4. **Indexed queries**: Uses `by_sessionId` index for efficient lookups
-5. **Event records pattern**: Page views use `pageViews` table instead of counters
+1. **Dedup windows**: 10s for sessions, 5s for messages
+2. **Idempotency checks**: Early return when no meaningful changes
+3. **Batch mutations**: Process multiple items in single transaction
+4. **Parallel operations**: Promise.all for parts deletion/insertion
+5. **Combined patches**: Single session patch instead of multiple
+6. **Replace pattern**: ctx.db.replace for embeddings instead of delete+insert
+7. **Cache reads**: Store session data to avoid re-reading after insert
 
 ## Summary
 

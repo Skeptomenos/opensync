@@ -6,6 +6,7 @@ import { Link, useLocation } from "react-router-dom";
 import { cn } from "../lib/utils";
 import { useTheme, getThemeClasses } from "../lib/theme";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { LegalModal, PRIVACY_POLICY, TERMS_OF_SERVICE } from "../components/LegalModal";
 import {
   ArrowLeft,
   Key,
@@ -25,6 +26,8 @@ import {
   Loader2,
   ChevronDown,
   ChevronRight,
+  FileText,
+  Shield,
 } from "lucide-react";
 
 // Convex URL from environment
@@ -52,6 +55,10 @@ export function SettingsPage() {
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Legal modals state
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   const currentUser = useQuery(api.users.me);
   const stats = useQuery(api.users.stats);
@@ -135,7 +142,7 @@ export function SettingsPage() {
       <header className={cn("border-b sticky top-0 z-10", t.border, t.bgPrimary)}>
         <div className="max-w-5xl mx-auto px-6 h-12 flex items-center gap-4">
           <Link
-            to="/"
+            to="/dashboard"
             className={cn("flex items-center gap-2 transition-colors", t.textSubtle, t.bgHover)}
           >
             <ArrowLeft className="h-4 w-4" />
@@ -517,6 +524,38 @@ export function SettingsPage() {
                 </div>
               </div>
             </section>
+
+            {/* Legal Links */}
+            <section>
+              <h2 className={cn("text-sm font-normal mb-4 flex items-center gap-2", t.textMuted)}>
+                <FileText className="h-4 w-4" />
+                Legal
+              </h2>
+              <div className={cn("p-4 rounded-lg border", t.bgCard, t.border)}>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setShowTermsModal(true)}
+                    className={cn(
+                      "flex items-center gap-2 text-sm transition-colors",
+                      theme === "dark" ? "text-blue-400 hover:text-blue-300" : "text-[#EB5601] hover:text-[#d14a01]"
+                    )}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Terms of Service
+                  </button>
+                  <button
+                    onClick={() => setShowPrivacyModal(true)}
+                    className={cn(
+                      "flex items-center gap-2 text-sm transition-colors",
+                      theme === "dark" ? "text-blue-400 hover:text-blue-300" : "text-[#EB5601] hover:text-[#d14a01]"
+                    )}
+                  >
+                    <Shield className="h-4 w-4" />
+                    Privacy Policy
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
         )}
       </main>
@@ -561,6 +600,20 @@ export function SettingsPage() {
         confirmText="Delete Account"
         cancelText="Cancel"
         variant="danger"
+      />
+
+      {/* Legal Modals */}
+      <LegalModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        title="Terms of Service"
+        content={TERMS_OF_SERVICE}
+      />
+      <LegalModal
+        isOpen={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
+        title="Privacy Policy"
+        content={PRIVACY_POLICY}
       />
     </div>
   );

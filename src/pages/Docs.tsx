@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ExternalLink,
@@ -23,9 +23,266 @@ import {
   BookOpen,
   Package,
   BarChart3,
+  Command,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useTheme, getThemeClasses } from "../lib/theme";
+
+// Search index entry type
+interface SearchEntry {
+  id: string;
+  title: string;
+  section: string;
+  keywords: string[];
+  snippet: string;
+}
+
+// Build searchable index from doc content
+const searchIndex: SearchEntry[] = [
+  // Hosted Version
+  { id: "hosted", title: "Use the Hosted Version", section: "Getting Started", keywords: ["hosted", "quick", "start", "sign in", "opensync.dev", "2 minutes"], snippet: "Start syncing sessions in under 2 minutes with opensync.dev" },
+  { id: "hosted-features", title: "Features", section: "Hosted Version", keywords: ["sync", "search", "private", "export", "delete", "api", "rag", "workos"], snippet: "Sync, search, export, and API access features" },
+  { id: "hosted-install", title: "Install Plugins Locally", section: "Hosted Version", keywords: ["install", "npm", "opencode-sync-plugin", "claude-code-sync", "plugin", "global"], snippet: "npm install -g opencode-sync-plugin" },
+  { id: "hosted-login", title: "Login and Sync", section: "Hosted Version", keywords: ["login", "sync", "api key", "convex url", "authenticate"], snippet: "Run opencode-sync login or claude-code-sync login" },
+  
+  // Requirements
+  { id: "requirements", title: "Self-Hosting Requirements", section: "Setup", keywords: ["requirements", "self-host", "deploy", "cloud", "local"], snippet: "Requirements for self-hosting your own instance" },
+  { id: "requirements-cloud", title: "Cloud Deployment", section: "Requirements", keywords: ["cloud", "convex", "workos", "node", "openai", "api key", "scaling"], snippet: "Use Convex Cloud for managed backend" },
+  { id: "requirements-local", title: "100% Local Deployment", section: "Requirements", keywords: ["local", "docker", "self-host", "127.0.0.1", "private", "no cloud"], snippet: "Run entirely on your machine with Docker" },
+  
+  // Quick Start
+  { id: "quickstart", title: "Quick Start", section: "Setup", keywords: ["quickstart", "quick start", "getting started", "setup", "begin"], snippet: "Get started with OpenSync" },
+  { id: "quickstart-deploy", title: "Deploy Backend", section: "Quick Start", keywords: ["deploy", "backend", "convex", "npx convex dev", "clone", "git"], snippet: "Clone repo and deploy to Convex" },
+  { id: "quickstart-api-key", title: "Get API Key", section: "Quick Start", keywords: ["api key", "generate", "settings", "osk_", "token"], snippet: "Generate API key from Settings" },
+  { id: "quickstart-plugin", title: "Install Plugin", section: "Quick Start", keywords: ["install", "plugin", "npm", "opencode", "claude code"], snippet: "Install opencode-sync-plugin or claude-code-sync" },
+  
+  // Dashboard
+  { id: "dashboard", title: "Dashboard Features", section: "Features", keywords: ["dashboard", "overview", "metrics", "analytics", "ui"], snippet: "Dashboard overview and features" },
+  { id: "dashboard-overview", title: "Overview Tab", section: "Dashboard", keywords: ["overview", "metrics", "total sessions", "tokens", "cost", "charts", "30 days"], snippet: "Key metrics and usage trends over 30 days" },
+  { id: "dashboard-sessions", title: "Sessions View", section: "Dashboard", keywords: ["sessions", "browse", "filter", "sort", "source badges", "OC", "CC", "conversation"], snippet: "Browse and filter all synced sessions" },
+  { id: "dashboard-evals", title: "Evals Export", section: "Dashboard", keywords: ["evals", "export", "eval-ready", "deepeval", "openai", "jsonl", "training", "dataset"], snippet: "Export sessions for training and evaluation" },
+  { id: "dashboard-analytics", title: "Analytics", section: "Dashboard", keywords: ["analytics", "model", "provider", "project", "breakdown", "cost per session", "efficiency"], snippet: "Detailed breakdowns by model, provider, project" },
+  { id: "dashboard-context", title: "Context Search", section: "Dashboard", keywords: ["context", "search", "rag", "full-text", "semantic", "pipeline"], snippet: "Full-text search for RAG pipelines" },
+  
+  // OpenCode Plugin
+  { id: "opencode-plugin", title: "OpenCode Plugin", section: "Plugins", keywords: ["opencode", "plugin", "opencode-sync-plugin", "npm"], snippet: "OpenCode sync plugin documentation" },
+  { id: "opencode-install", title: "Installation", section: "OpenCode Plugin", keywords: ["install", "npm install", "opencode-sync-plugin", "global", "-g"], snippet: "npm install -g opencode-sync-plugin" },
+  { id: "opencode-config", title: "Configuration", section: "OpenCode Plugin", keywords: ["config", "configuration", "opencode.json", "plugin array", "login"], snippet: "Configure opencode.json with plugin array" },
+  { id: "opencode-commands", title: "Commands", section: "OpenCode Plugin", keywords: ["commands", "login", "status", "sync", "opencode-sync"], snippet: "login, status, sync commands" },
+  
+  // Claude Plugin
+  { id: "claude-plugin", title: "Claude Code Plugin", section: "Plugins", keywords: ["claude", "claude code", "claude-code-sync", "anthropic"], snippet: "Claude Code sync plugin documentation" },
+  { id: "claude-install", title: "Installation", section: "Claude Code Plugin", keywords: ["install", "npm install", "claude-code-sync", "global", "-g"], snippet: "npm install -g claude-code-sync" },
+  { id: "claude-config", title: "Configuration", section: "Claude Code Plugin", keywords: ["config", "configuration", "config.json", ".config", "convexUrl", "apiKey"], snippet: "Create ~/.config/claude-code-sync/config.json" },
+  { id: "claude-commands", title: "Commands", section: "Claude Code Plugin", keywords: ["commands", "login", "status", "sync", "claude-code-sync"], snippet: "login, status, sync commands" },
+  
+  // API Reference
+  { id: "api", title: "API Reference", section: "API", keywords: ["api", "rest", "http", "endpoint", "curl", "bearer token"], snippet: "REST API reference and endpoints" },
+  { id: "api-auth", title: "Authentication", section: "API", keywords: ["authentication", "auth", "bearer", "token", "api key", "jwt", "authorization header"], snippet: "Bearer token authentication" },
+  { id: "api-sessions", title: "Sessions Endpoint", section: "API", keywords: ["sessions", "endpoint", "/api/sessions", "list", "get"], snippet: "GET /api/sessions" },
+  { id: "api-search", title: "Search Endpoint", section: "API", keywords: ["search", "endpoint", "/api/search", "query", "type", "fulltext", "semantic"], snippet: "GET /api/search?q=query&type=semantic" },
+  { id: "api-context", title: "Context Endpoint", section: "API", keywords: ["context", "endpoint", "/api/context", "rag", "format", "text", "limit"], snippet: "GET /api/context for RAG pipelines" },
+  { id: "api-export", title: "Export Endpoint", section: "API", keywords: ["export", "endpoint", "/api/export", "markdown", "format", "download"], snippet: "GET /api/export?format=markdown" },
+  { id: "api-stats", title: "Stats Endpoint", section: "API", keywords: ["stats", "statistics", "endpoint", "/api/stats", "metrics"], snippet: "GET /api/stats" },
+  
+  // Search Types
+  { id: "search", title: "Search", section: "Features", keywords: ["search", "full-text", "semantic", "hybrid", "embeddings"], snippet: "Search types and functionality" },
+  { id: "search-fulltext", title: "Full-Text Search", section: "Search", keywords: ["full-text", "fulltext", "keyword", "exact", "fast", "?type=fulltext"], snippet: "Keyword matching, fast and exact" },
+  { id: "search-semantic", title: "Semantic Search", section: "Search", keywords: ["semantic", "meaning", "embeddings", "openai", "vector", "?type=semantic"], snippet: "Meaning-based search using embeddings" },
+  { id: "search-hybrid", title: "Hybrid Search", section: "Search", keywords: ["hybrid", "rrf", "combined", "both", "?type=hybrid"], snippet: "Combines full-text and semantic search" },
+  
+  // Authentication
+  { id: "auth", title: "Authentication", section: "Security", keywords: ["authentication", "auth", "security", "workos", "api key"], snippet: "Authentication methods" },
+  { id: "auth-workos", title: "WorkOS AuthKit", section: "Authentication", keywords: ["workos", "authkit", "sso", "enterprise", "oauth", "google", "github"], snippet: "Enterprise authentication with SSO support" },
+  { id: "auth-api-keys", title: "API Keys", section: "Authentication", keywords: ["api key", "osk_", "generate", "settings", "plugins", "bearer"], snippet: "Generate API keys for plugins" },
+  
+  // Hosting
+  { id: "hosting", title: "Hosting & Deploy", section: "Deployment", keywords: ["hosting", "deploy", "deployment", "production"], snippet: "Hosting and deployment options" },
+  { id: "hosting-convex", title: "Convex Backend", section: "Hosting", keywords: ["convex", "backend", "deploy", "npx convex deploy", "real-time", "database"], snippet: "Deploy backend to Convex" },
+  { id: "hosting-netlify", title: "Netlify Frontend", section: "Hosting", keywords: ["netlify", "frontend", "deploy", "vercel", "react", "vite"], snippet: "Deploy frontend to Netlify" },
+  { id: "hosting-env", title: "Environment Variables", section: "Hosting", keywords: ["env", "environment", "variables", "VITE_CONVEX_URL", "VITE_WORKOS_CLIENT_ID", ".env"], snippet: "Required environment variables" },
+  
+  // Fork & Self-Host
+  { id: "fork", title: "Fork & Self-Host", section: "Advanced", keywords: ["fork", "self-host", "clone", "github", "customize"], snippet: "Fork and customize OpenSync" },
+  { id: "fork-repo", title: "Clone Repository", section: "Fork", keywords: ["clone", "git clone", "github", "repository", "repo"], snippet: "git clone https://github.com/waynesutton/opensync.git" },
+  { id: "fork-setup", title: "Setup Steps", section: "Fork", keywords: ["setup", "steps", "convex", "workos", "env", "deploy"], snippet: "Step-by-step setup guide" },
+  { id: "fork-customize", title: "Customization", section: "Fork", keywords: ["customize", "customization", "modify", "theme", "branding"], snippet: "Customize your instance" },
+  
+  // Troubleshooting & FAQ
+  { id: "troubleshooting", title: "Troubleshooting", section: "Help", keywords: ["troubleshooting", "error", "issue", "problem", "fix", "debug", "not working"], snippet: "Common issues and solutions" },
+  { id: "faq", title: "FAQ", section: "Help", keywords: ["faq", "question", "frequently asked", "help", "support"], snippet: "Frequently asked questions" },
+];
+
+// DocSearch component with typeahead
+function DocSearch({ onClose }: { onClose?: () => void }) {
+  const { theme } = useTheme();
+  const t = getThemeClasses(theme);
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Filter results based on query
+  const results = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    return searchIndex
+      .filter((entry) => {
+        // Match title, keywords, or snippet
+        return (
+          entry.title.toLowerCase().includes(q) ||
+          entry.keywords.some((k) => k.includes(q)) ||
+          entry.snippet.toLowerCase().includes(q)
+        );
+      })
+      .slice(0, 8); // Limit to 8 results
+  }, [query]);
+
+  // Navigate to section
+  const navigateToSection = useCallback((id: string) => {
+    setIsOpen(false);
+    setQuery("");
+    onClose?.();
+    // Navigate with hash
+    navigate(`/docs#${id}`);
+    // Scroll to element after a brief delay for DOM update
+    setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  }, [navigate, onClose]);
+
+  // Keyboard navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.min(i + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter" && results[selectedIndex]) {
+      e.preventDefault();
+      navigateToSection(results[selectedIndex].id);
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+      setQuery("");
+    }
+  }, [results, selectedIndex, navigateToSection]);
+
+  // Reset selected index when results change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [results]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (resultsRef.current && results.length > 0) {
+      const item = resultsRef.current.children[selectedIndex] as HTMLElement;
+      item?.scrollIntoView({ block: "nearest" });
+    }
+  }, [selectedIndex, results.length]);
+
+  // Global keyboard shortcut (Cmd/Ctrl + K)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+        setIsOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handleGlobalKeyDown);
+    return () => document.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
+  return (
+    <div className="relative">
+      {/* Search input */}
+      <div className="relative">
+        <Search className={cn("absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4", t.textSubtle)} />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => {
+            // Delay to allow click on results
+            setTimeout(() => setIsOpen(false), 150);
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder="Search docs..."
+          className={cn(
+            "w-full pl-9 pr-16 py-2 text-sm rounded-lg border transition-colors",
+            "focus:outline-none focus:ring-2 focus:ring-offset-1",
+            t.border,
+            t.bgCard,
+            t.textPrimary,
+            "placeholder:text-gray-400 dark:placeholder:text-gray-500",
+            "focus:ring-gray-300 dark:focus:ring-gray-600"
+          )}
+        />
+        <div className={cn("absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px]", t.textDim)}>
+          <kbd className={cn("px-1.5 py-0.5 rounded border font-mono", t.border, t.bgCode)}>
+            <Command className="h-3 w-3 inline" />
+          </kbd>
+          <kbd className={cn("px-1.5 py-0.5 rounded border font-mono", t.border, t.bgCode)}>K</kbd>
+        </div>
+      </div>
+
+      {/* Results dropdown */}
+      {isOpen && results.length > 0 && (
+        <div
+          ref={resultsRef}
+          className={cn(
+            "absolute top-full left-0 right-0 mt-2 rounded-lg border shadow-xl overflow-hidden z-50 max-h-80 overflow-y-auto",
+            t.border,
+            theme === "dark" ? "bg-[#1a1a1a]" : "bg-[#faf8f5]"
+          )}
+        >
+          {results.map((result, i) => (
+            <button
+              key={result.id}
+              onClick={() => navigateToSection(result.id)}
+              className={cn(
+                "w-full px-4 py-3 text-left flex flex-col gap-1 transition-colors border-b last:border-b-0",
+                t.border,
+                i === selectedIndex 
+                  ? (theme === "dark" ? "bg-[#2a2a2a]" : "bg-[#f0ede8]")
+                  : (theme === "dark" ? "hover:bg-[#252525]" : "hover:bg-[#f5f2ed]")
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span className={cn("text-sm font-medium", t.textPrimary)}>
+                  {result.title}
+                </span>
+                <span className={cn("text-[10px] px-1.5 py-0.5 rounded", theme === "dark" ? "bg-[#2a2a2a]" : "bg-[#e8e5e0]", t.textDim)}>
+                  {result.section}
+                </span>
+              </div>
+              <p className={cn("text-xs line-clamp-1", t.textSubtle)}>
+                {result.snippet}
+              </p>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* No results */}
+      {isOpen && query.trim() && results.length === 0 && (
+        <div className={cn("absolute top-full left-0 right-0 mt-2 rounded-lg border shadow-xl p-4 z-50", t.border, theme === "dark" ? "bg-[#1a1a1a]" : "bg-[#faf8f5]")}>
+          <p className={cn("text-sm text-center", t.textSubtle)}>
+            No results for "{query}"
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Documentation sections structure
 interface DocSection {
@@ -326,6 +583,11 @@ function DocsSidebar({
           </button>
         </div>
       )}
+
+      {/* Search in sidebar */}
+      <div className={cn("px-3 py-3", isMobile ? "" : "border-b", t.border)}>
+        <DocSearch onClose={onClose} />
+      </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto scrollbar-hide py-4 px-3 space-y-1">
@@ -1009,7 +1271,7 @@ npm install
             theme === "dark" ? "bg-[#0E0E0E]/90" : "bg-[#faf8f5]/90"
           )}
         >
-          <div className="flex h-12 items-center justify-between px-4 lg:px-6">
+          <div className="flex h-12 items-center justify-between px-4 lg:px-6 gap-4">
             <div className="flex items-center gap-3">
               {/* Mobile menu */}
               <button
@@ -1030,7 +1292,21 @@ npm install
               </Link>
             </div>
 
+            {/* Search - centered and flexible width (desktop) */}
+            <div className="flex-1 max-w-md hidden sm:block">
+              <DocSearch />
+            </div>
+
             <div className="flex items-center gap-2">
+              {/* Mobile search button - opens sidebar with search */}
+              <button
+                onClick={() => setShowMobileSidebar(true)}
+                className={cn("p-1.5 rounded sm:hidden", t.bgHover, t.textSubtle)}
+                title="Search docs"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+
               {/* View as markdown */}
               <button
                 onClick={() => setShowMarkdownView(true)}
