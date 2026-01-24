@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
@@ -8,7 +6,16 @@ import { getSourceLabel, getSourceColorClass } from "../lib/source";
 import { useTheme, getThemeClasses } from "../lib/theme";
 import { StatCard, BarChart, DonutChart, FilterPill, ProgressBar, ConsumptionBreakdown } from "../components/Charts";
 import { ConfirmModal } from "../components/ConfirmModal";
-import type { Id } from "../../convex/_generated/dataModel";
+import {
+  useSessions,
+  useSession,
+  useAnalytics,
+  useEvals,
+  useUser,
+  useBulkOperations,
+  type SortField as SessionsSortField,
+  type SortOrder as SessionsSortOrder,
+} from "../hooks";
 import {
   Search,
   Settings,
@@ -49,7 +56,8 @@ import {
 
 // View modes
 type ViewMode = "overview" | "sessions" | "evals" | "analytics";
-type SortField = "updatedAt" | "createdAt" | "totalTokens" | "cost" | "durationMs";
+// Use the imported SortField and SortOrder from hooks, but map display names
+type SortField = "updated" | "created" | "totalTokens" | "cost" | "durationMs";
 type SortOrder = "asc" | "desc";
 // Source filter type for filtering by plugin source
 type SourceFilter = "all" | string;
@@ -80,8 +88,8 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
-  const [selectedSessionId, setSelectedSessionId] = useState<Id<"sessions"> | null>(null);
-  const [sortField, setSortField] = useState<SortField>("updatedAt");
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField>("updated");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [filterModel, setFilterModel] = useState<string | undefined>();
   const [filterProject, setFilterProject] = useState<string | undefined>();
@@ -90,21 +98,15 @@ export function DashboardPage() {
   // Source filter for OpenCode vs Claude Code sessions
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
-  // Ensure user exists
-  const getOrCreate = useMutation(api.users.getOrCreate);
-  useEffect(() => {
-    getOrCreate();
-  }, [getOrCreate]);
-
-  // Get current user for enabled agents
-  const currentUser = useQuery(api.users.me);
-  const enabledAgents = currentUser?.enabledAgents ?? DEFAULT_ENABLED_AGENTS;
+  // Get current user for enabled agents (useUser replaces getOrCreate + me queries)
+  const { enabledAgents: userEnabledAgents } = useUser({ realtime: true });
+  const enabledAgents = userEnabledAgents.length > 0 ? userEnabledAgents : DEFAULT_ENABLED_AGENTS;
 
   // Read session ID from URL param (e.g., from Context search "Open in Dashboard")
   useEffect(() => {
     const sessionParam = searchParams.get("session");
     if (sessionParam) {
-      setSelectedSessionId(sessionParam as Id<"sessions">);
+      setSelectedSessionId(sessionParam);
       setViewMode("sessions");
       // Clear the URL param for cleaner URL
       setSearchParams({}, { replace: true });
@@ -126,27 +128,50 @@ export function DashboardPage() {
   // Convert sourceFilter to query arg (undefined means all)
   const sourceArg = sourceFilter === "all" ? undefined : sourceFilter;
 
-  // Fetch data with source filtering
-  const summaryStats = useQuery(api.analytics.summaryStats, { source: sourceArg });
-  const dailyStats = useQuery(api.analytics.dailyStats, { days: 30, source: sourceArg });
-  const modelStats = useQuery(api.analytics.modelStats, { source: sourceArg });
-  const projectStats = useQuery(api.analytics.projectStats, { source: sourceArg });
-  const providerStats = useQuery(api.analytics.providerStats, { source: sourceArg });
-  const sessionsData = useQuery(api.analytics.sessionsWithDetails, {
-    limit: 100,
-    sortBy: sortField,
-    sortOrder,
-    filterModel,
-    filterProject,
-    filterProvider,
+  // Fetch analytics data with source filtering (single hook provides all stats)
+  const {
+    summaryStats,
+    dailyStats,
+    modelStats,
+    projectStats,
+    providerStats,
+    isLoading: _analyticsLoading,
+  } = useAnalytics({
     source: sourceArg,
+    days: 30,
+    userId: user?.id,
+    realtime: true,
   });
 
-  // Selected session details
-  const selectedSession = useQuery(
-    api.sessions.get,
-    selectedSessionId ? { sessionId: selectedSessionId } : "skip"
-  );
+  // Fetch sessions with filters
+  const {
+    sessions: sessionsData,
+    total: sessionsTotal,
+    isLoading: _sessionsLoading,
+  } = useSessions({
+    limit: 100,
+    sortBy: sortField as SessionsSortField,
+    sortOrder: sortOrder as SessionsSortOrder,
+    source: sourceArg,
+    model: filterModel,
+    project: filterProject,
+    provider: filterProvider,
+    userId: user?.id,
+    realtime: true,
+  });
+
+  // Selected session details (uses useSession hook)
+  const {
+    session: selectedSession,
+    markdown,
+    isLoading: _sessionLoading,
+    setVisibility,
+    deleteSession,
+    isMutating: _sessionMutating,
+  } = useSession({
+    sessionId: selectedSessionId,
+    realtime: true,
+  });
 
   // Get unique values for filters
   const filterOptions = useMemo(() => {
@@ -154,7 +179,7 @@ export function DashboardPage() {
     const projects = new Set<string>();
     const providers = new Set<string>();
     
-    sessionsData?.sessions.forEach((s) => {
+    sessionsData.forEach((s) => {
       if (s.model) models.add(s.model);
       if (s.projectName) projects.add(s.projectName);
       else if (s.projectPath) projects.add(s.projectPath);
@@ -168,7 +193,7 @@ export function DashboardPage() {
     };
   }, [sessionsData]);
 
-  const displaySessions = sessionsData?.sessions || [];
+  const displaySessions = sessionsData || [];
 
   const hasActiveFilters = !!(filterModel || filterProject || filterProvider);
 
@@ -320,9 +345,12 @@ export function DashboardPage() {
         {viewMode === "sessions" && (
           <SessionsView
             sessions={displaySessions}
-            total={sessionsData?.total || 0}
+            total={sessionsTotal}
             onSelectSession={setSelectedSessionId}
             selectedSession={selectedSession}
+            sessionMarkdown={markdown}
+            setSessionVisibility={setVisibility}
+            deleteSelectedSession={deleteSession}
             sortField={sortField}
             sortOrder={sortOrder}
             onSortChange={(field) => {
@@ -345,11 +373,12 @@ export function DashboardPage() {
             hasActiveFilters={hasActiveFilters}
             onClearFilters={clearFilters}
             theme={theme}
+            userId={user?.id}
           />
         )}
 
         {viewMode === "evals" && (
-          <EvalsView theme={theme} />
+          <EvalsView theme={theme} userId={user?.id} />
         )}
 
         {viewMode === "analytics" && (
@@ -598,8 +627,8 @@ function OverviewView({
   modelStats: any[];
   projectStats: any[];
   sessions: any[];
-  onSelectSession: (id: Id<"sessions"> | null) => void;
-  selectedSessionId: Id<"sessions"> | null;
+  onSelectSession: (id: string | null) => void;
+  selectedSessionId: string | null;
   theme: "dark" | "tan";
 }) {
   const t = getThemeClasses(theme);
@@ -818,6 +847,9 @@ function SessionsView({
   total,
   onSelectSession,
   selectedSession,
+  sessionMarkdown,
+  setSessionVisibility,
+  deleteSelectedSession,
   sortField,
   sortOrder,
   onSortChange,
@@ -833,11 +865,15 @@ function SessionsView({
   hasActiveFilters,
   onClearFilters,
   theme,
+  userId,
 }: {
   sessions: any[];
   total: number;
-  onSelectSession: (id: Id<"sessions"> | null) => void;
+  onSelectSession: (id: string | null) => void;
   selectedSession: any;
+  sessionMarkdown: string | null;
+  setSessionVisibility: (isPublic: boolean) => Promise<any>;
+  deleteSelectedSession: () => Promise<void>;
   sortField: SortField;
   sortOrder: SortOrder;
   onSortChange: (field: SortField) => void;
@@ -853,37 +889,40 @@ function SessionsView({
   hasActiveFilters?: boolean;
   onClearFilters: () => void;
   theme: "dark" | "tan";
+  userId?: string;
 }) {
   const t = getThemeClasses(theme);
-  const deleteSession = useMutation(api.sessions.remove);
-  const setVisibility = useMutation(api.sessions.setVisibility);
-  const setEvalReady = useMutation(api.evals.setEvalReady);
-  const markdown = useQuery(
-    api.sessions.getMarkdown,
-    selectedSession?.session?._id ? { sessionId: selectedSession.session._id } : "skip"
-  );
-  const csvData = useQuery(api.sessions.exportAllDataCSV);
+  
+  // Use Pocketbase hooks for evals and bulk operations
+  const { setEvalReady } = useEvals({ userId });
+  const { exportSessions } = useBulkOperations();
+  
   const [copied, setCopied] = useState(false);
   const [sessionsViewMode, setSessionsViewMode] = useState<SessionsViewMode>("list");
   const [isExportingCSV, setIsExportingCSV] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [sessionToDelete, setSessionToDelete] = useState<Id<"sessions"> | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const [isTogglingEval, setIsTogglingEval] = useState(false);
 
-  // CSV export handler
-  const handleExportCSV = () => {
-    if (!csvData) return;
+  // CSV export handler - uses bulk operations hook
+  const handleExportCSV = async () => {
+    if (sessions.length === 0) return;
     setIsExportingCSV(true);
-    const timestamp = new Date().toISOString().split("T")[0];
-    const filename = `opensync_sessions_${timestamp}.csv`;
-    const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-    setTimeout(() => setIsExportingCSV(false), 1000);
+    try {
+      const sessionIds = sessions.map((s) => s.id);
+      const result = await exportSessions(sessionIds, "csv");
+      const blob = new Blob([result.data], { type: result.mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("CSV export failed:", error);
+    } finally {
+      setTimeout(() => setIsExportingCSV(false), 1000);
+    }
   };
   
   // Drag scroll state for sessions list
@@ -917,24 +956,24 @@ function SessionsView({
   };
 
   const handleCopy = async () => {
-    if (markdown) {
-      await navigator.clipboard.writeText(markdown);
+    if (sessionMarkdown) {
+      await navigator.clipboard.writeText(sessionMarkdown);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   };
 
   const handleDownload = () => {
-    if (markdown && selectedSession?.session) {
+    if (sessionMarkdown && selectedSession) {
       // Sanitize filename - remove special characters that might cause issues
-      const safeTitle = (selectedSession.session.title || "session")
+      const safeTitle = (selectedSession.title || "session")
         .replace(/[/\\?%*:|"<>]/g, "-")
         .replace(/\s+/g, "_")
         .slice(0, 100);
       const timestamp = new Date().toISOString().split("T")[0];
       const filename = `${safeTitle}_${timestamp}.md`;
       
-      const blob = new Blob([markdown], { type: "text/markdown" });
+      const blob = new Blob([sessionMarkdown], { type: "text/markdown" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -945,7 +984,7 @@ function SessionsView({
   };
   
   // Check if markdown is loading
-  const isMarkdownLoading = selectedSession?.session?._id && markdown === undefined;
+  const isMarkdownLoading = selectedSession?.id && sessionMarkdown === undefined;
 
   return (
     <div className="h-full flex flex-col lg:flex-row">
@@ -1018,10 +1057,10 @@ function SessionsView({
             </button>
             <button
               onClick={handleExportCSV}
-              disabled={!csvData || isExportingCSV}
+              disabled={sessions.length === 0 || isExportingCSV}
               className={cn(
                 "p-1 rounded transition-colors",
-                !csvData || isExportingCSV ? "opacity-50 cursor-not-allowed" : "",
+                sessions.length === 0 || isExportingCSV ? "opacity-50 cursor-not-allowed" : "",
                 t.textSubtle, "hover:opacity-80"
               )}
               title="Export all sessions as CSV"
@@ -1167,10 +1206,10 @@ function SessionsView({
               </button>
               <button
                 onClick={handleDownload}
-                disabled={isMarkdownLoading || !markdown}
+                disabled={isMarkdownLoading || !sessionMarkdown}
                 className={cn(
                   "p-1.5 rounded transition-colors",
-                  isMarkdownLoading || !markdown ? "opacity-50 cursor-not-allowed" : "",
+                  isMarkdownLoading || !sessionMarkdown ? "opacity-50 cursor-not-allowed" : "",
                   t.textSubtle, t.bgHover
                 )}
                 title={isMarkdownLoading ? "Loading..." : "Download as Markdown"}
@@ -1178,19 +1217,19 @@ function SessionsView({
                 <Download className={cn("h-3.5 w-3.5", isMarkdownLoading && "animate-pulse")} />
               </button>
               <button
-                onClick={() => setVisibility({ sessionId: selectedSession.session._id, isPublic: !selectedSession.session.isPublic })}
+                onClick={() => setSessionVisibility(!selectedSession.isPublic)}
                 className={cn(
                   "p-1.5 rounded transition-colors",
-                  selectedSession.session.isPublic ? "text-emerald-500" : t.textSubtle,
+                  selectedSession.isPublic ? "text-emerald-500" : t.textSubtle,
                   t.bgHover
                 )}
-                title={selectedSession.session.isPublic ? "Make Private" : "Make Public"}
+                title={selectedSession.isPublic ? "Make Private" : "Make Public"}
               >
-                {selectedSession.session.isPublic ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                {selectedSession.isPublic ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
               </button>
-              {selectedSession.session.isPublic && selectedSession.session.publicSlug && (
+              {selectedSession.isPublic && selectedSession.publicSlug && (
                 <a
-                  href={`/s/${selectedSession.session.publicSlug}`}
+                  href={`/s/${selectedSession.publicSlug}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={cn("p-1.5 rounded transition-colors", t.textSubtle, t.bgHover)}
@@ -1204,10 +1243,7 @@ function SessionsView({
                 onClick={async () => {
                   setIsTogglingEval(true);
                   try {
-                    await setEvalReady({
-                      sessionId: selectedSession.session._id,
-                      evalReady: !selectedSession.session.evalReady,
-                    });
+                    await setEvalReady(selectedSession.id, !selectedSession.evalReady);
                   } finally {
                     setIsTogglingEval(false);
                   }
@@ -1215,7 +1251,7 @@ function SessionsView({
                 disabled={isTogglingEval}
                 className={cn(
                   "p-1.5 rounded transition-colors",
-                  selectedSession.session.evalReady ? "text-emerald-500" : t.textSubtle,
+                  selectedSession.evalReady ? "text-emerald-500" : t.textSubtle,
                   isTogglingEval ? "opacity-50" : "",
                   t.bgHover
                 )}
@@ -1261,9 +1297,10 @@ function SessionsView({
           setSessionToDelete(null);
         }}
         onConfirm={async () => {
-          if (sessionToDelete) {
-            await deleteSession({ sessionId: sessionToDelete });
+          if (sessionToDelete && selectedSession?.id === sessionToDelete) {
+            await deleteSelectedSession();
             setSessionToDelete(null);
+            onSelectSession(null);
           }
         }}
         title="Delete Session"
@@ -1284,8 +1321,8 @@ function TimelineView({
   theme,
 }: {
   sessions: any[];
-  selectedSessionId?: Id<"sessions">;
-  onSelectSession: (id: Id<"sessions"> | null) => void;
+  selectedSessionId?: string;
+  onSelectSession: (id: string | null) => void;
   theme: "dark" | "tan";
 }) {
   const t = getThemeClasses(theme);
@@ -1475,14 +1512,14 @@ function TimelineView({
 type ExportFormat = "deepeval" | "openai" | "filesystem";
 
 // Evals View - Evaluation sessions and export
-function EvalsView({ theme }: { theme: "dark" | "tan" }) {
+function EvalsView({ theme, userId }: { theme: "dark" | "tan"; userId?: string }) {
   const t = getThemeClasses(theme);
   const isDark = theme === "dark";
 
   // State
   const [sourceFilter, setSourceFilter] = useState<string | undefined>();
   const [tagFilter, setTagFilter] = useState<string | undefined>();
-  const [selectedSessions, setSelectedSessions] = useState<Set<Id<"sessions">>>(new Set());
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("deepeval");
   const [exportOptions, setExportOptions] = useState({
@@ -1491,19 +1528,23 @@ function EvalsView({ theme }: { theme: "dark" | "tan" }) {
     anonymizePaths: true,
   });
   const [isExporting, setIsExporting] = useState(false);
-  const setEvalReady = useMutation(api.evals.setEvalReady);
 
-  // Queries
-  const evalData = useQuery(api.evals.listEvalSessions, {
+  // Use Pocketbase useEvals hook
+  const {
+    evalSessions,
+    stats,
+    allTags,
+    setEvalReady,
+    generateExport,
+  } = useEvals({
     source: sourceFilter,
     tags: tagFilter ? [tagFilter] : undefined,
+    userId,
+    realtime: true,
   });
-  const allTags = useQuery(api.evals.getEvalTags);
-  const generateExport = useAction(api.evals.generateEvalExport);
 
   // Computed
-  const sessions = evalData?.sessions || [];
-  const stats = evalData?.stats || { total: 0, bySource: { opencode: 0, claudeCode: 0 }, totalTestCases: 0 };
+  const sessions = evalSessions;
   const hasActiveFilters = sourceFilter || tagFilter;
 
   // Handlers
@@ -1511,11 +1552,11 @@ function EvalsView({ theme }: { theme: "dark" | "tan" }) {
     if (selectedSessions.size === sessions.length) {
       setSelectedSessions(new Set());
     } else {
-      setSelectedSessions(new Set(sessions.map((s) => s._id)));
+      setSelectedSessions(new Set(sessions.map((s: { id: string }) => s.id)));
     }
   };
 
-  const handleToggleSession = (sessionId: Id<"sessions">) => {
+  const handleToggleSession = (sessionId: string) => {
     const newSet = new Set(selectedSessions);
     if (newSet.has(sessionId)) {
       newSet.delete(sessionId);
@@ -1534,11 +1575,11 @@ function EvalsView({ theme }: { theme: "dark" | "tan" }) {
         ? Array.from(selectedSessions) 
         : "all" as const;
       
-      const result = await generateExport({
+      const result = await generateExport(
         sessionIds,
-        format: exportFormat,
-        options: exportOptions,
-      });
+        exportFormat,
+        exportOptions,
+      );
 
       // Download the file
       const blob = new Blob([result.data], { type: "application/json" });
@@ -1691,18 +1732,18 @@ function EvalsView({ theme }: { theme: "dark" | "tan" }) {
                 <tbody>
                   {sessions.map((session) => (
                     <tr
-                      key={session._id}
+                      key={session.id}
                       className={cn(
                         "border-b transition-colors",
                         t.border,
-                        selectedSessions.has(session._id) ? (isDark ? "bg-zinc-800/50" : "bg-[#f5f3f0]") : t.bgHover
+                        selectedSessions.has(session.id) ? (isDark ? "bg-zinc-800/50" : "bg-[#f5f3f0]") : t.bgHover
                       )}
                     >
                       <td className="px-4 py-3">
                         <input
                           type="checkbox"
-                          checked={selectedSessions.has(session._id)}
-                          onChange={() => handleToggleSession(session._id)}
+                          checked={selectedSessions.has(session.id)}
+                          onChange={() => handleToggleSession(session.id)}
                           className="h-4 w-4 rounded border-gray-300"
                         />
                       </td>
@@ -1750,10 +1791,7 @@ function EvalsView({ theme }: { theme: "dark" | "tan" }) {
                       <td className="px-4 py-3">
                         <button
                           onClick={async () => {
-                            await setEvalReady({
-                              sessionId: session._id,
-                              evalReady: false,
-                            });
+                            await setEvalReady(session.id, false);
                           }}
                           className={cn("p-1 rounded hover:bg-red-500/20 text-red-400")}
                           title="Remove from evals"
