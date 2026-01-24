@@ -1,0 +1,146 @@
+# Implementation Plan: Pocketbase Migration
+
+**Status:** In Progress
+**Spec:** `ralph-wiggum/specs/POCKETBASE_MIGRATION.md`
+**Branch:** `feature/pocketbase-migration`
+
+---
+
+## Tasks
+
+| Status | Task | Est. | Acceptance Criteria |
+|--------|------|------|---------------------|
+| | **Phase 1: Pocketbase Setup (~2h)** | | |
+| [x] | **1.1**: Download Pocketbase binary (macOS + Linux) | 15m | `./pocketbase serve` starts, admin UI at `:8090/_/` |
+| [ ] | **1.2**: Create `users` collection with schema + indexes | 15m | Can create/read user via admin UI |
+| [ ] | **1.3**: Create `sessions` collection with schema + indexes | 15m | Can create/read session via admin UI |
+| [ ] | **1.4**: Create `messages` collection with schema + indexes | 15m | Can create/read message via admin UI |
+| [ ] | **1.5**: Create `parts` collection with schema + indexes | 10m | Can create/read part via admin UI |
+| [ ] | **1.6**: Create `apiLogs` collection with schema + indexes | 10m | Can create/read log via admin UI |
+| [ ] | **1.7**: Configure CORS for `localhost:5173` | 10m | No CORS errors in browser console |
+| [ ] | **1.8**: Create `.env.local` with Pocketbase URL | 5m | `VITE_POCKETBASE_URL` set, app reads it |
+| | | | |
+| | **Phase 2: SDK & Auth (~3h)** | | |
+| [ ] | **2.1**: Install pocketbase SDK | 10m | `npm install pocketbase` succeeds, can import |
+| [ ] | **2.2**: Create `src/lib/pocketbase.ts` client setup | 30m | Client connects, can ping `/api/health` |
+| [ ] | **2.3**: Create `src/lib/types.ts` for all collections | 45m | Types compile, match PB schema exactly |
+| [ ] | **2.4**: Create PocketbaseProvider context | 30m | Hook returns client instance in components |
+| [ ] | **2.5**: Wire Authelia headers to PB user sync | 45m | Visit app -> user created in PB `users` collection |
+| [ ] | **2.6**: Update `main.tsx` with PocketbaseProvider | 15m | App loads without errors, provider wraps app |
+| [ ] | **2.7**: Benchmark PB realtime subscriptions | 30m | Sub latency <500ms for session updates |
+| | | | |
+| | **Phase 3: Data Hooks (~6h)** | | |
+| [ ] | **3.1**: Create `useSessions` hook (list, filter, paginate) | 45m | Dashboard shows session list |
+| [ ] | **3.2**: Create `useSession` hook (single + realtime) | 45m | SessionViewer loads session data |
+| [ ] | **3.3**: Create `useMessages` hook (with parts expansion) | 45m | Messages render in SessionViewer |
+| [ ] | **3.4**: Create `useUser` hook (current user, stats) | 30m | Settings shows user info |
+| [ ] | **3.5**: Create `useSearch` hook (full-text) | 45m | Context page returns search results |
+| [ ] | **3.6**: Create `useAnalytics` hook (single fetch, multi-compute) | 60m | Dashboard stats match manual calculation |
+| [ ] | **3.7**: Create `useEvals` hook (list, tags) | 30m | Evals page shows sessions |
+| [ ] | **3.8**: Add loading states to all hooks | 30m | Skeleton loaders display during fetch |
+| [ ] | **3.9**: Add error boundaries for PB failures | 30m | Graceful error UI on API failure |
+| | | | |
+| | **Phase 4: Mutations (~3h)** | | |
+| [ ] | **4.1**: Session mutations (update, delete, visibility) | 45m | Can toggle visibility, delete session |
+| [ ] | **4.2**: User mutations (API key gen/revoke, agents) | 45m | Generate key -> key appears in UI |
+| [ ] | **4.3**: Eval mutations (ready, tags, notes) | 30m | Can mark session eval-ready |
+| [ ] | **4.4**: Bulk operations (multi-delete, export) | 45m | Delete 10 sessions at once works |
+| | | | |
+| | **Phase 5: Page Migration (~8h)** | | |
+| [ ] | **5.1**: Migrate Dashboard.tsx (19 hooks) | 3h | All charts, stats, session list work |
+| [ ] | **5.2**: Migrate Settings.tsx (8 hooks) | 1h | API key, danger zone, preferences work |
+| [ ] | **5.3**: Migrate Context.tsx (5 hooks) | 45m | Search returns results, pagination works |
+| [ ] | **5.4**: Migrate Evals.tsx (5 hooks) | 45m | Export generates valid file |
+| [ ] | **5.5**: Migrate PublicSession.tsx (2 hooks) | 30m | Public URL loads session without auth |
+| [ ] | **5.6**: Migrate SessionViewer.tsx (4 hooks) | 1h | Full session detail, actions work |
+| | | | |
+| | **Phase 6: Sync API (~4h)** | | |
+| [ ] | **6.1**: Create sync endpoints (session, message, batch) | 90m | Plugin POST creates session in PB |
+| [ ] | **6.2**: Implement API key validation middleware | 30m | Invalid key returns 401 |
+| [ ] | **6.3**: Create read API endpoints (list, get, search) | 45m | `GET /api/sessions` returns JSON |
+| [ ] | **6.4**: Create export endpoints (markdown, JSON, CSV) | 45m | Download button triggers file download |
+| [ ] | **6.5**: Update plugin to v2.0 for Pocketbase | 30m | Plugin syncs to new endpoints |
+| | | | |
+| | **Phase 7: Cleanup & Deploy (~3h)** | | |
+| [ ] | **7.1**: Remove Convex packages and `convex/` dir | 30m | `npm run build` succeeds, no Convex imports |
+| [ ] | **7.2**: Update AGENTS.md and README | 30m | Docs reflect Pocketbase architecture |
+| [ ] | **7.3**: Create database backup script | 30m | `backup.sh` copies `pb_data/` with timestamp |
+| [ ] | **7.4**: End-to-end testing | 60m | Fresh setup -> sync -> view -> search -> export |
+| [ ] | **7.5**: Production deployment (systemd) | 30m | `systemctl status opensync-pb` shows running |
+| | | | |
+| | **Deferred: Vector Search** | | |
+| [ ] | **D.1**: Create embedding collections | 30m | Collections exist in admin UI |
+| [ ] | **D.2**: Implement embedding generation on sync | 60m | Sync triggers OpenAI API call |
+| [ ] | **D.3**: Implement brute-force semantic search | 90m | Semantic search returns relevant results |
+
+---
+
+## Legend
+
+- `[ ]` Pending
+- `[x]` Complete
+- `[!]` Blocked
+
+---
+
+## Progress Summary
+
+| Phase | Tasks | Est. Time | Completed |
+|-------|-------|-----------|-----------|
+| Phase 1: Setup | 8 | 2h | 1 |
+| Phase 2: SDK & Auth | 7 | 3h | 0 |
+| Phase 3: Data Hooks | 9 | 6h | 0 |
+| Phase 4: Mutations | 4 | 3h | 0 |
+| Phase 5: Pages | 6 | 8h | 0 |
+| Phase 6: API | 5 | 4h | 0 |
+| Phase 7: Cleanup | 5 | 3h | 0 |
+| Deferred | 3 | 3h | 0 |
+| **Total** | **47** | **~32h** | **1** |
+
+---
+
+## Notes
+
+- **Priority Order:** Phase 1-2 (setup) -> Phase 3-4 (hooks) -> Phase 5 (pages) -> Phase 6 (API) -> Phase 7 (cleanup)
+- **Dependencies:** Each phase depends on previous phases completing
+- **Parallel Work:**
+  - Phase 1: Tasks 1.2-1.6 (collections) can be done in parallel
+  - Phase 3: Tasks 3.1-3.7 (hooks) can be done in parallel
+  - Phase 5: Tasks 5.3-5.6 can be parallelized after 5.1 (Dashboard is the reference)
+- **Testing Strategy:** Test after each task using acceptance criteria
+- **Rollback:** Keep Convex code until Phase 7 in case of issues
+- **Auth:** Already Authelia-compatible - `src/lib/auth.tsx` uses `/api/me` header pass-through
+- **Analytics Strategy:** Single `useAnalytics` hook fetches all sessions once, computes summary/daily/model/project stats client-side to avoid multiple round-trips
+
+---
+
+## Source Code Analysis Summary
+
+### Convex Usage by File (to be migrated)
+| File | Total Hooks | Notes |
+|------|-------------|-------|
+| Dashboard.tsx | 19 | Largest migration, includes analytics |
+| Settings.tsx | 8 | User data, API key, danger zone |
+| Context.tsx | 5 | Search functionality |
+| Evals.tsx | 5 | Eval list and export |
+| SessionViewer.tsx | 4 | Session detail with actions |
+| PublicSession.tsx | 2 | Public session view |
+| **Total** | **43** | |
+
+### Files Requiring No Changes
+- `src/lib/theme.tsx` - Pure theme provider
+- `src/lib/utils.ts` - Utility functions
+- `src/lib/source.ts` - Source type utilities
+- `src/pages/Docs.tsx` - Static content
+- `src/pages/Login.tsx` - Simple redirect
+- `src/components/Charts.tsx` - Presentational
+- `src/components/ConfirmModal.tsx` - UI only
+- `src/components/LegalModal.tsx` - Static content
+- `src/components/Header.tsx` - Uses local auth only
+
+### Convex API Endpoints to Replicate
+**Users:** me, stats, getOrCreate, generateApiKey, revokeApiKey, updateEnabledAgents, deleteAllData
+**Sessions:** list, get, getPublic, getMarkdown, exportAllDataCSV, setVisibility, remove
+**Analytics:** summaryStats, dailyStats, modelStats, projectStats, providerStats, sourceStats
+**Search:** searchSessionsPaginated, searchMessagesPaginated, semanticSearch (deferred)
+**Evals:** listEvalSessions, getEvalTags, setEvalReady, updateEvalNotes, updateEvalTags, generateEvalExport
