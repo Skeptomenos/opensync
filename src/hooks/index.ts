@@ -48,3 +48,15 @@ export type {
   UseSearchSessionsResult,
   UseSearchMessagesResult,
 } from "./useSearch";
+
+export { useAnalytics } from "./useAnalytics";
+export type {
+  SummaryStats,
+  DailyStats,
+  ModelStats,
+  ProjectStats,
+  ProviderStats,
+  SourceStats,
+  UseAnalyticsOptions,
+  UseAnalyticsResult,
+} from "./useAnalytics";
