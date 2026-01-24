@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { useQuery, useAction } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
 import { getSourceLabel, getSourceColorClass } from "../lib/source";
 import { useTheme, getThemeClasses } from "../lib/theme";
 import { StatCard } from "../components/Charts";
-import type { Id } from "../../convex/_generated/dataModel";
+import { useEvals, useUser } from "../hooks";
 import {
   Settings,
   User,
@@ -81,7 +79,7 @@ export function EvalsPage() {
   // State
   const [sourceFilter, setSourceFilter] = useState<string | undefined>();
   const [tagFilter, setTagFilter] = useState<string | undefined>();
-  const [selectedSessions, setSelectedSessions] = useState<Set<Id<"sessions">>>(new Set());
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("deepeval");
   const [exportOptions, setExportOptions] = useState({
@@ -91,20 +89,22 @@ export function EvalsPage() {
   });
   const [isExporting, setIsExporting] = useState(false);
 
-  // Queries
-  const currentUser = useQuery(api.users.me);
-  const enabledAgents = currentUser?.enabledAgents ?? DEFAULT_ENABLED_AGENTS;
+  // Get current user for enabled agents list
+  const { user: currentUser, enabledAgents: userEnabledAgents } = useUser();
+  const enabledAgents = userEnabledAgents.length > 0 ? userEnabledAgents : DEFAULT_ENABLED_AGENTS;
   
-  const evalData = useQuery(api.evals.listEvalSessions, {
+  // Get eval sessions with filters
+  const {
+    evalSessions: sessions,
+    stats,
+    allTags,
+    generateExport,
+    isLoading,
+  } = useEvals({
     source: sourceFilter,
     tags: tagFilter ? [tagFilter] : undefined,
+    userId: currentUser?.id,
   });
-  const allTags = useQuery(api.evals.getEvalTags);
-  const generateExport = useAction(api.evals.generateEvalExport);
-
-  // Computed
-  const sessions = evalData?.sessions || [];
-  const stats = evalData?.stats || { total: 0, bySource: { opencode: 0, claudeCode: 0, factoryDroid: 0 }, totalTestCases: 0 };
   const hasActiveFilters = sourceFilter || tagFilter;
 
   // Handlers
@@ -112,11 +112,11 @@ export function EvalsPage() {
     if (selectedSessions.size === sessions.length) {
       setSelectedSessions(new Set());
     } else {
-      setSelectedSessions(new Set(sessions.map((s) => s._id)));
+      setSelectedSessions(new Set(sessions.map((s) => s.id)));
     }
   };
 
-  const handleToggleSession = (sessionId: Id<"sessions">) => {
+  const handleToggleSession = (sessionId: string) => {
     const newSet = new Set(selectedSessions);
     if (newSet.has(sessionId)) {
       newSet.delete(sessionId);
@@ -135,11 +135,7 @@ export function EvalsPage() {
         ? Array.from(selectedSessions) 
         : "all" as const;
       
-      const result = await generateExport({
-        sessionIds,
-        format: exportFormat,
-        options: exportOptions,
-      });
+      const result = await generateExport(sessionIds, exportFormat, exportOptions);
 
       // Download the file
       const blob = new Blob([result.data], { type: "application/json" });
@@ -350,7 +346,12 @@ export function EvalsPage() {
           </div>
 
           {/* Sessions list */}
-          {sessions.length === 0 ? (
+          {isLoading ? (
+            <div className={cn("text-center py-16 rounded-lg border", t.bgCard, t.border)}>
+              <Loader2 className={cn("h-8 w-8 mx-auto mb-4 animate-spin", t.iconMuted)} />
+              <p className={cn("text-sm font-medium", t.textPrimary)}>Loading eval sessions...</p>
+            </div>
+          ) : sessions.length === 0 ? (
             <div className={cn("text-center py-16 rounded-lg border", t.bgCard, t.border)}>
               <CheckCircle2 className={cn("h-12 w-12 mx-auto mb-4", t.iconMuted)} />
               <p className={cn("text-sm font-medium mb-2", t.textPrimary)}>No eval sessions yet</p>
@@ -393,18 +394,18 @@ export function EvalsPage() {
               {/* Table rows */}
               {sessions.map((session) => (
                 <div
-                  key={session._id}
+                  key={session.id}
                   className={cn(
                     "grid grid-cols-12 gap-4 px-4 py-3 text-xs border-b last:border-b-0 transition-colors",
                     t.border,
-                    selectedSessions.has(session._id) ? t.bgActive : t.bgHover
+                    selectedSessions.has(session.id) ? t.bgActive : t.bgHover
                   )}
                 >
                   <div className="col-span-1 flex items-center">
                     <input
                       type="checkbox"
-                      checked={selectedSessions.has(session._id)}
-                      onChange={() => handleToggleSession(session._id)}
+                      checked={selectedSessions.has(session.id)}
+                      onChange={() => handleToggleSession(session.id)}
                       className="rounded"
                     />
                   </div>
