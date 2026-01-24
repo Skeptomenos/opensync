@@ -63,7 +63,7 @@
 | | | | |
 | | **Phase 7: Cleanup & Deploy (~3h)** | | |
 | [x] | **7.1**: Remove Convex packages and `convex/` dir | 30m | Deleted convex/ directory (16 files), uninstalled convex @convex-dev/rag @convex-dev/workos, removed WorkOS packages, fixed Sidebar.tsx Convex import. Build succeeds. |
-| [ ] | **7.2**: Update AGENTS.md and README | 30m | Docs reflect Pocketbase architecture |
+| [x] | **7.2**: Update AGENTS.md and README | 30m | Updated AGENTS.md with comprehensive Pocketbase architecture docs: quick reference, project status, dev setup, architecture flow, key directories, data collections, hooks list, API endpoints, common tasks, troubleshooting, git workflow. Updated README.md to reflect Pocketbase backend (replacing Convex), sync plugin v2.0 setup, API endpoints, tech stack. Build passes. Done in v1.3.0-pb.31. |
 | [ ] | **7.3**: Create database backup script | 30m | `backup.sh` copies `pb_data/` with timestamp |
 | [ ] | **7.4**: End-to-end testing | 60m | Fresh setup -> sync -> view -> search -> export |
 | [ ] | **7.5**: Production deployment (systemd) | 30m | `systemctl status opensync-pb` shows running |
@@ -93,9 +93,9 @@
 | Phase 4: Mutations | 4 | 3h | 4 |
 | Phase 5: Pages | 6 | 8h | 6 |
 | Phase 6: API | 5 | 4h | 5 |
-| Phase 7: Cleanup | 5 | 3h | 1 |
+| Phase 7: Cleanup | 5 | 3h | 2 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **39** |
+| **Total** | **47** | **~32h** | **40** |
 
 ---
 
