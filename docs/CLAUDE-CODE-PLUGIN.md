@@ -2,6 +2,15 @@
 
 Sync your Claude Code sessions to the OpenSync dashboard. Track coding sessions, analyze tool usage, and monitor token consumption across projects.
 
+## v2.0 - Pocketbase Backend
+
+**Version 2.0** migrates from Convex (cloud) to Pocketbase (self-hosted). The API contract remains the same, so existing credentials continue to work once you update the URL.
+
+### Breaking Changes in v2.0
+
+- **URL changed**: Use your Pocketbase URL instead of Convex URL
+- **API key prefix**: New keys use `os_*` prefix (old `osk_*` keys still work)
+
 ## Installation
 
 ```bash
@@ -14,10 +23,10 @@ The plugin uses **API Key authentication**. No browser OAuth flow required.
 
 ### Step 1: Get Your API Key
 
-1. Log into your OpenSync dashboard at https://opensyncsessions.netlify.app
+1. Log into your OpenSync dashboard
 2. Go to **Settings**
 3. Click **Generate API Key**
-4. Copy the key (starts with `osk_`)
+4. Copy the key (starts with `os_`)
 
 ### Step 2: Configure the Plugin
 
@@ -26,8 +35,8 @@ claude-code-sync login
 ```
 
 Enter when prompted:
-- **Convex URL**: Your deployment URL (e.g., `https://your-project.convex.cloud`)
-- **API Key**: Your API key from Settings (e.g., `osk_abc123...`)
+- **OpenSync URL**: Your Pocketbase deployment URL (e.g., `https://opensync.yourdomain.com`)
+- **API Key**: Your API key from Settings (e.g., `os_abc123...`)
 
 ### Step 3: Verify Connection
 
@@ -40,14 +49,14 @@ You should see:
 📊 Claude Code Sync - Status
 
 Configuration:
-  Convex URL: https://your-project.convex.site
-  API Key:    osk_****1234
+  OpenSync URL: https://opensync.yourdomain.com
+  API Key:    os_****1234
   Auto Sync:  enabled
   Tool Calls: enabled
   Thinking:   disabled
 
 ⏳ Testing connection...
-✅ Connected to Convex backend
+✅ Connected to Pocketbase backend
 ```
 
 ## Configuration
@@ -58,21 +67,23 @@ Credentials are stored at `~/.config/claude-code-sync/config.json`:
 
 ```json
 {
-  "convexUrl": "https://your-deployment.convex.cloud",
-  "apiKey": "osk_your_api_key",
+  "url": "https://opensync.yourdomain.com",
+  "apiKey": "os_your_api_key",
   "autoSync": true,
   "syncToolCalls": true,
   "syncThinking": false
 }
 ```
 
+For backward compatibility, the plugin also accepts `convexUrl` (legacy v1.x format).
+
 ### Environment Variables
 
 Alternatively, use environment variables:
 
 ```bash
-export CLAUDE_SYNC_CONVEX_URL="https://your-deployment.convex.cloud"
-export CLAUDE_SYNC_API_KEY="osk_your_api_key"
+export CLAUDE_SYNC_URL="https://opensync.yourdomain.com"
+export CLAUDE_SYNC_API_KEY="os_your_api_key"
 export CLAUDE_SYNC_AUTO_SYNC="true"
 export CLAUDE_SYNC_TOOL_CALLS="true"
 export CLAUDE_SYNC_THINKING="false"
@@ -82,8 +93,8 @@ export CLAUDE_SYNC_THINKING="false"
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `convexUrl` | string | required | Your Convex deployment URL |
-| `apiKey` | string | required | API key from OpenSync Settings (osk_*) |
+| `url` | string | required | Your OpenSync Pocketbase URL |
+| `apiKey` | string | required | API key from OpenSync Settings (os_* or osk_*) |
 | `autoSync` | boolean | `true` | Automatically sync when sessions end |
 | `syncToolCalls` | boolean | `true` | Include tool call details |
 | `syncThinking` | boolean | `false` | Include thinking/reasoning traces |
@@ -99,7 +110,7 @@ claude-code-sync set autoSync false
 
 | Command | Description |
 |---------|-------------|
-| `claude-code-sync login` | Configure Convex URL and API Key |
+| `claude-code-sync login` | Configure OpenSync URL and API Key |
 | `claude-code-sync logout` | Clear stored credentials |
 | `claude-code-sync status` | Show authentication and connection status |
 | `claude-code-sync config` | Show current configuration |
@@ -154,11 +165,11 @@ The plugin registers hooks that fire at key points in Claude Code's lifecycle:
 4. **Stop** - Captures Claude's response and token usage
 5. **SessionEnd** - Syncs final session data with totals
 
-All events are sent to your Convex backend via the `/sync/session` and `/sync/message` HTTP endpoints.
+All events are sent to your Pocketbase backend via the `/sync/session` and `/sync/message` HTTP endpoints.
 
 ## Privacy
 
-- **Your data stays yours** - All data goes to YOUR Convex deployment, not any third party
+- **Your data stays yours** - All data goes to YOUR self-hosted Pocketbase instance, not any third party
 - **Automatic redaction** - Sensitive patterns (API keys, tokens, passwords) are redacted
 - **File contents excluded** - Only file paths and lengths are synced, not contents
 - **Thinking off by default** - Extended thinking traces require explicit opt-in
@@ -187,9 +198,9 @@ Run `claude-code-sync login` to set up your credentials.
 ### "Could not connect" error
 
 Check that:
-1. Your Convex deployment is running
-2. The URL is correct (accepts `.convex.cloud` or `.convex.site`)
-3. Your API key is valid (starts with `osk_`)
+1. Your Pocketbase server is running (`bin/pocketbase serve`)
+2. The URL is correct (e.g., `https://opensync.yourdomain.com`)
+3. Your API key is valid (starts with `os_` or `osk_`)
 
 ### Sessions not appearing
 
@@ -204,11 +215,16 @@ The plugin logs sync activity to the console. Look for lines starting with `[cla
 
 ## URL Formats
 
-The plugin accepts both URL formats:
-- `https://your-project.convex.cloud` (dashboard URL)
-- `https://your-project.convex.site` (API endpoint URL)
+The plugin accepts URLs for both backends:
+- **Pocketbase (v2.0+)**: `https://opensync.yourdomain.com`
+- **Convex (v1.x)**: `https://your-project.convex.cloud` or `https://your-project.convex.site`
 
-The plugin automatically normalizes to `.site` for API calls.
+### Migrating from v1.x (Convex) to v2.0 (Pocketbase)
+
+1. Deploy your Pocketbase instance (see [Homelab Setup](../HOMELAB_SETUP.md))
+2. Run `claude-code-sync login` with the new Pocketbase URL
+3. Generate a new API key in the Pocketbase dashboard Settings
+4. Your old `osk_*` key will NOT work with the new backend
 
 ## Differences from OpenCode Plugin
 

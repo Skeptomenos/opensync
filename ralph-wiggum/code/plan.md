@@ -59,7 +59,7 @@
 | [x] | **6.2**: Implement API key validation middleware | 30m | Implemented in server/sync.ts validateApiKey(). Supports Bearer os_* and osk_* formats. Returns 401 for invalid/missing keys. Uses superuser auth to lookup user by apiKey field. Done in v1.3.0-pb.26. |
 | [x] | **6.3**: Create read API endpoints (list, get, search) | 45m | Created GET /api/sessions (list with limit), GET /api/sessions/get?id= (single session with messages/parts), GET /api/search?q=&type=fulltext (full-text search), GET /api/stats (user statistics). All endpoints use API key auth. Test script at scripts/test-read-api.mjs. Done in v1.3.0-pb.27. |
 | [x] | **6.4**: Create export endpoints (markdown, JSON, CSV) | 45m | Created GET /api/export?id=&format= endpoint. Supports single or comma-separated session IDs. Formats: json (full session with messages/parts), csv (summary only), markdown (formatted conversation). Returns file with Content-Disposition: attachment. Test script at scripts/test-export-api.mjs. Done in v1.3.0-pb.28. |
-| [ ] | **6.5**: Update plugin to v2.0 for Pocketbase | 30m | Plugin syncs to new endpoints |
+| [x] | **6.5**: Update plugin to v2.0 for Pocketbase | 30m | Updated docs/OPENCODE-PLUGIN.md and docs/CLAUDE-CODE-PLUGIN.md with v2.0 Pocketbase instructions. Documented: new URL format, os_* API key prefix, backward compatibility with osk_*, migration guide from v1.x Convex. Build passes. |
 | | | | |
 | | **Phase 7: Cleanup & Deploy (~3h)** | | |
 | [ ] | **7.1**: Remove Convex packages and `convex/` dir | 30m | `npm run build` succeeds, no Convex imports |
@@ -92,10 +92,10 @@
 | Phase 3: Data Hooks | 9 | 6h | 9 |
 | Phase 4: Mutations | 4 | 3h | 4 |
 | Phase 5: Pages | 6 | 8h | 6 |
-| Phase 6: API | 5 | 4h | 4 |
+| Phase 6: API | 5 | 4h | 5 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **37** |
+| **Total** | **47** | **~32h** | **38** |
 
 ---
 
