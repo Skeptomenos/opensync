@@ -18,7 +18,7 @@
 | [x] | **1.5**: Create `parts` collection with schema + indexes | 10m | Created parts collection with 7 fields (message relation, type, content JSON, order, id, created, updated). Added 2 indexes: idx_parts_message, idx_parts_message_order. Migration: 1769262695. |
 | [x] | **1.6**: Create `apiLogs` collection with schema + indexes | 10m | Created apiLogs collection with 7 fields (user relation, endpoint, method, statusCode, responseTimeMs, created, updated). Added 2 indexes: idx_apiLogs_user, idx_apiLogs_user_created. Access rules: users can view/delete their own logs, only server-side can create. Migration: 1769262938. |
 | [x] | **1.7**: Configure CORS for `localhost:5173` | 10m | Added Vite proxy config to forward /api/collections, /api/admins, /api/realtime (ws), /api/files, and /_/ to Pocketbase at :8090. Tested: dev server starts, requests proxy correctly. |
-| [ ] | **1.8**: Create `.env.local` with Pocketbase URL | 5m | `VITE_POCKETBASE_URL` set, app reads it |
+| [x] | **1.8**: Create `.env.local` with Pocketbase URL | 5m | Created `.env.local` with `VITE_POCKETBASE_URL=http://localhost:8090`. Updated `.env.example` for Pocketbase. Dev server starts successfully. |
 | | | | |
 | | **Phase 2: SDK & Auth (~3h)** | | |
 | [ ] | **2.1**: Install pocketbase SDK | 10m | `npm install pocketbase` succeeds, can import |
@@ -87,7 +87,7 @@
 
 | Phase | Tasks | Est. Time | Completed |
 |-------|-------|-----------|-----------|
-| Phase 1: Setup | 8 | 2h | 7 |
+| Phase 1: Setup | 8 | 2h | 8 |
 | Phase 2: SDK & Auth | 7 | 3h | 0 |
 | Phase 3: Data Hooks | 9 | 6h | 0 |
 | Phase 4: Mutations | 4 | 3h | 0 |
@@ -95,7 +95,7 @@
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **6** |
+| **Total** | **47** | **~32h** | **8** |
 
 ---
 
