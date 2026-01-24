@@ -21,7 +21,7 @@
 | [x] | **1.8**: Create `.env.local` with Pocketbase URL | 5m | Created `.env.local` with `VITE_POCKETBASE_URL=http://localhost:8090`. Updated `.env.example` for Pocketbase. Dev server starts successfully. |
 | | | | |
 | | **Phase 2: SDK & Auth (~3h)** | | |
-| [ ] | **2.1**: Install pocketbase SDK | 10m | `npm install pocketbase` succeeds, can import |
+| [x] | **2.1**: Install pocketbase SDK | 10m | Installed pocketbase ^0.26.6. Import verified via tsx test. Pre-existing build errors (User type missing fields) documented in Task 2.3. |
 | [ ] | **2.2**: Create `src/lib/pocketbase.ts` client setup | 30m | Client connects, can ping `/api/health` |
 | [ ] | **2.3**: Create `src/lib/types.ts` for all collections | 45m | Types compile, match PB schema exactly |
 | [ ] | **2.4**: Create PocketbaseProvider context | 30m | Hook returns client instance in components |
@@ -88,14 +88,14 @@
 | Phase | Tasks | Est. Time | Completed |
 |-------|-------|-----------|-----------|
 | Phase 1: Setup | 8 | 2h | 8 |
-| Phase 2: SDK & Auth | 7 | 3h | 0 |
+| Phase 2: SDK & Auth | 7 | 3h | 1 |
 | Phase 3: Data Hooks | 9 | 6h | 0 |
 | Phase 4: Mutations | 4 | 3h | 0 |
 | Phase 5: Pages | 6 | 8h | 0 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **8** |
+| **Total** | **47** | **~32h** | **9** |
 
 ---
 
