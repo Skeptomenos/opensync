@@ -20,3 +20,10 @@ export type {
   SessionMessage,
   SessionWithMessages,
 } from "./useSession";
+
+export { useMessages } from "./useMessages";
+export type {
+  UseMessagesOptions,
+  UseMessagesResult,
+  MessageWithParts,
+} from "./useMessages";
