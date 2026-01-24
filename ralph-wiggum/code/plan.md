@@ -30,7 +30,7 @@
 | [x] | **2.7**: Benchmark PB realtime subscriptions | 30m | PASS: P95 latency ~5ms (well under 500ms target). Created scripts/benchmark-realtime.mjs using eventsource polyfill for Node.js. Tests CREATE and UPDATE operations with 10 trials each. Subscription uses SSE (Server-Sent Events) via Pocketbase's realtime API. |
 | | | | |
 | | **Phase 3: Data Hooks (~6h)** | | |
-| [ ] | **3.1**: Create `useSessions` hook (list, filter, paginate) | 45m | Dashboard shows session list |
+| [x] | **3.1**: Create `useSessions` hook (list, filter, paginate) | 45m | Created src/hooks/useSessions.ts with list, filter (source, model, project, provider), sort, pagination, and realtime subscription support. Includes inferProvider helper. Build passes. |
 | [ ] | **3.2**: Create `useSession` hook (single + realtime) | 45m | SessionViewer loads session data |
 | [ ] | **3.3**: Create `useMessages` hook (with parts expansion) | 45m | Messages render in SessionViewer |
 | [ ] | **3.4**: Create `useUser` hook (current user, stats) | 30m | Settings shows user info |
@@ -89,13 +89,13 @@
 |-------|-------|-----------|-----------|
 | Phase 1: Setup | 8 | 2h | 8 |
 | Phase 2: SDK & Auth | 7 | 3h | 7 |
-| Phase 3: Data Hooks | 9 | 6h | 0 |
+| Phase 3: Data Hooks | 9 | 6h | 1 |
 | Phase 4: Mutations | 4 | 3h | 0 |
 | Phase 5: Pages | 6 | 8h | 0 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **15** |
+| **Total** | **47** | **~32h** | **16** |
 
 ---
 
