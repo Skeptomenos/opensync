@@ -62,7 +62,7 @@
 | [x] | **6.5**: Update plugin to v2.0 for Pocketbase | 30m | Updated docs/OPENCODE-PLUGIN.md and docs/CLAUDE-CODE-PLUGIN.md with v2.0 Pocketbase instructions. Documented: new URL format, os_* API key prefix, backward compatibility with osk_*, migration guide from v1.x Convex. Build passes. |
 | | | | |
 | | **Phase 7: Cleanup & Deploy (~3h)** | | |
-| [ ] | **7.1**: Remove Convex packages and `convex/` dir | 30m | `npm run build` succeeds, no Convex imports |
+| [x] | **7.1**: Remove Convex packages and `convex/` dir | 30m | Deleted convex/ directory (16 files), uninstalled convex @convex-dev/rag @convex-dev/workos, removed WorkOS packages, fixed Sidebar.tsx Convex import. Build succeeds. |
 | [ ] | **7.2**: Update AGENTS.md and README | 30m | Docs reflect Pocketbase architecture |
 | [ ] | **7.3**: Create database backup script | 30m | `backup.sh` copies `pb_data/` with timestamp |
 | [ ] | **7.4**: End-to-end testing | 60m | Fresh setup -> sync -> view -> search -> export |
@@ -93,9 +93,9 @@
 | Phase 4: Mutations | 4 | 3h | 4 |
 | Phase 5: Pages | 6 | 8h | 6 |
 | Phase 6: API | 5 | 4h | 5 |
-| Phase 7: Cleanup | 5 | 3h | 0 |
+| Phase 7: Cleanup | 5 | 3h | 1 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **38** |
+| **Total** | **47** | **~32h** | **39** |
 
 ---
 

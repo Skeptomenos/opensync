@@ -9,10 +9,9 @@ import {
   Lock,
   Cpu,
 } from "lucide-react";
-import type { Id } from "../../convex/_generated/dataModel";
 
 interface Session {
-  _id: Id<"sessions">;
+  id: string;
   externalId: string;
   title?: string;
   projectPath?: string;
@@ -22,14 +21,14 @@ interface Session {
   cost: number;
   isPublic: boolean;
   messageCount: number;
-  createdAt: number;
-  updatedAt: number;
+  created: string;
+  updated: string;
 }
 
 interface SidebarProps {
   sessions: Session[];
-  selectedSessionId: Id<"sessions"> | null;
-  onSelectSession: (id: Id<"sessions">) => void;
+  selectedSessionId: string | null;
+  onSelectSession: (id: string) => void;
   collapsed: boolean;
   isSearching: boolean;
 }
@@ -68,11 +67,11 @@ export function Sidebar({
       <div className="w-12 border-r border-zinc-800 bg-[#161616] flex flex-col items-center py-2 gap-1">
         {sessions.slice(0, 10).map((session) => (
           <button
-            key={session._id}
-            onClick={() => onSelectSession(session._id)}
+            key={session.id}
+            onClick={() => onSelectSession(session.id)}
             className={cn(
               "p-2 rounded hover:bg-zinc-800",
-              selectedSessionId === session._id && "bg-zinc-800"
+              selectedSessionId === session.id && "bg-zinc-800"
             )}
             title={session.title || "Untitled"}
           >
@@ -99,10 +98,10 @@ export function Sidebar({
           <div className="space-y-0.5 px-2">
             {sessions.map((session) => (
               <SessionItem
-                key={session._id}
+                key={session.id}
                 session={session}
-                isSelected={selectedSessionId === session._id}
-                onClick={() => onSelectSession(session._id)}
+                isSelected={selectedSessionId === session.id}
+                onClick={() => onSelectSession(session.id)}
               />
             ))}
           </div>
@@ -128,10 +127,10 @@ export function Sidebar({
                   <div className="ml-4 space-y-0.5 px-2">
                     {projectSessions.map((session) => (
                       <SessionItem
-                        key={session._id}
+                        key={session.id}
                         session={session}
-                        isSelected={selectedSessionId === session._id}
-                        onClick={() => onSelectSession(session._id)}
+                        isSelected={selectedSessionId === session.id}
+                        onClick={() => onSelectSession(session.id)}
                       />
                     ))}
                   </div>
@@ -160,7 +159,7 @@ function SessionItem({
   isSelected: boolean;
   onClick: () => void;
 }) {
-  const timeAgo = getTimeAgo(session.updatedAt);
+  const timeAgo = getTimeAgo(new Date(session.updated).getTime());
 
   return (
     <button
