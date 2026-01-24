@@ -27,6 +27,7 @@ dist/
 pocketbase
 pocketbase_*.zip
 pb_data/
+backups/
 # Note: pb_migrations/ IS tracked - migrations should be version controlled
 CHANGELOG.md
 LICENSE.md
