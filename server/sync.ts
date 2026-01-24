@@ -613,3 +613,373 @@ export async function handleSyncSessionsList(
     sendJson(res, { error: String(e) }, 500);
   }
 }
+
+// ============================================================================
+// Read API Types
+// ============================================================================
+
+interface SessionResponse {
+  id: string;
+  externalId: string;
+  title?: string;
+  projectPath?: string;
+  projectName?: string;
+  model?: string;
+  provider?: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cost: number;
+  durationMs?: number;
+  isPublic: boolean;
+  messageCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface MessageResponse {
+  id: string;
+  externalId: string;
+  role: string;
+  textContent?: string;
+  model?: string;
+  promptTokens?: number;
+  completionTokens?: number;
+  durationMs?: number;
+  createdAt: number;
+  parts: Array<{
+    type: string;
+    content: unknown;
+  }>;
+}
+
+interface PartRecord {
+  id: string;
+  message: string;
+  type: string;
+  content: unknown;
+  order: number;
+}
+
+// ============================================================================
+// Read API Endpoints
+// ============================================================================
+
+/**
+ * Parse URL query parameters.
+ */
+function parseQuery(url: string): Record<string, string> {
+  const queryString = url.split("?")[1] || "";
+  const params: Record<string, string> = {};
+  for (const pair of queryString.split("&")) {
+    const [key, value] = pair.split("=");
+    if (key) {
+      params[decodeURIComponent(key)] = decodeURIComponent(value || "");
+    }
+  }
+  return params;
+}
+
+/**
+ * Convert Pocketbase record to API response format.
+ * Maps PB's 'created'/'updated' to 'createdAt'/'updatedAt' as Unix timestamps.
+ */
+function toSessionResponse(record: Record<string, unknown>): SessionResponse {
+  return {
+    id: record.id as string,
+    externalId: record.externalId as string,
+    title: (record.title as string) || undefined,
+    projectPath: (record.projectPath as string) || undefined,
+    projectName: (record.projectName as string) || undefined,
+    model: (record.model as string) || undefined,
+    provider: (record.provider as string) || undefined,
+    promptTokens: (record.promptTokens as number) || 0,
+    completionTokens: (record.completionTokens as number) || 0,
+    totalTokens: (record.totalTokens as number) || 0,
+    cost: (record.cost as number) || 0,
+    durationMs: (record.durationMs as number) || undefined,
+    isPublic: (record.isPublic as boolean) || false,
+    messageCount: (record.messageCount as number) || 0,
+    createdAt: new Date(record.created as string).getTime(),
+    updatedAt: new Date(record.updated as string).getTime(),
+  };
+}
+
+/**
+ * GET /api/sessions - List sessions for the authenticated user.
+ *
+ * Query params:
+ *   - limit: number (default 50, max 100)
+ *
+ * Response:
+ *   { sessions: SessionResponse[] }
+ */
+export async function handleApiSessions(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (req.method === "OPTIONS") {
+    return sendCorsPrelight(res);
+  }
+
+  const authHeader = req.headers.authorization;
+  const auth = await validateApiKey(authHeader);
+
+  if ("error" in auth) {
+    return sendJson(res, { error: auth.error }, auth.status);
+  }
+
+  try {
+    const query = parseQuery(req.url || "");
+    const limit = Math.min(parseInt(query.limit || "50", 10) || 50, 100);
+
+    const sessions = await auth.pb.collection("sessions").getList(1, limit, {
+      filter: `user = "${auth.user.id}"`,
+      sort: "-updated",
+    });
+
+    const sessionResponses = sessions.items.map((s) =>
+      toSessionResponse(s as Record<string, unknown>)
+    );
+
+    sendJson(res, { sessions: sessionResponses });
+  } catch (e) {
+    console.error("List sessions error:", e);
+    sendJson(res, { error: String(e) }, 500);
+  }
+}
+
+/**
+ * GET /api/sessions/get - Get a single session with messages and parts.
+ *
+ * Query params:
+ *   - id: string (required) - Session ID
+ *
+ * Response:
+ *   { session: SessionResponse, messages: MessageResponse[] }
+ */
+export async function handleApiSessionsGet(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (req.method === "OPTIONS") {
+    return sendCorsPrelight(res);
+  }
+
+  const authHeader = req.headers.authorization;
+  const auth = await validateApiKey(authHeader);
+
+  if ("error" in auth) {
+    return sendJson(res, { error: auth.error }, auth.status);
+  }
+
+  try {
+    const query = parseQuery(req.url || "");
+    const sessionId = query.id;
+
+    if (!sessionId) {
+      return sendJson(res, { error: "Missing 'id' query parameter" }, 400);
+    }
+
+    // Get the session
+    let session: Record<string, unknown>;
+    try {
+      session = await auth.pb.collection("sessions").getOne(sessionId) as Record<string, unknown>;
+    } catch {
+      return sendJson(res, { error: "Session not found" }, 404);
+    }
+
+    // Verify user owns the session
+    if (session.user !== auth.user.id) {
+      return sendJson(res, { error: "Session not found" }, 404);
+    }
+
+    // Get messages for the session
+    const messages = await auth.pb.collection("messages").getFullList({
+      filter: `session = "${sessionId}"`,
+      sort: "created",
+    });
+
+    // Get all parts for all messages in one query
+    const messageIds = messages.map((m) => m.id);
+    let allParts: PartRecord[] = [];
+    if (messageIds.length > 0) {
+      const partsFilter = messageIds.map((id) => `message = "${id}"`).join(" || ");
+      allParts = await auth.pb.collection("parts").getFullList({
+        filter: partsFilter,
+        sort: "order",
+      }) as PartRecord[];
+    }
+
+    // Group parts by message
+    const partsByMessage = new Map<string, PartRecord[]>();
+    for (const part of allParts) {
+      const msgId = part.message;
+      if (!partsByMessage.has(msgId)) {
+        partsByMessage.set(msgId, []);
+      }
+      partsByMessage.get(msgId)!.push(part);
+    }
+
+    // Build message responses with parts
+    const messageResponses: MessageResponse[] = messages.map((m) => {
+      const msgRecord = m as Record<string, unknown>;
+      const msgParts = partsByMessage.get(m.id) || [];
+      return {
+        id: m.id,
+        externalId: msgRecord.externalId as string,
+        role: msgRecord.role as string,
+        textContent: (msgRecord.textContent as string) || undefined,
+        model: (msgRecord.model as string) || undefined,
+        promptTokens: (msgRecord.promptTokens as number) || undefined,
+        completionTokens: (msgRecord.completionTokens as number) || undefined,
+        durationMs: (msgRecord.durationMs as number) || undefined,
+        createdAt: new Date(msgRecord.created as string).getTime(),
+        parts: msgParts.map((p) => ({
+          type: p.type,
+          content: p.content,
+        })),
+      };
+    });
+
+    sendJson(res, {
+      session: toSessionResponse(session),
+      messages: messageResponses,
+    });
+  } catch (e) {
+    console.error("Get session error:", e);
+    sendJson(res, { error: String(e) }, 500);
+  }
+}
+
+/**
+ * GET /api/search - Search sessions by text.
+ *
+ * Query params:
+ *   - q: string (required) - Search query
+ *   - limit: number (default 20, max 50)
+ *   - type: "fulltext" (default) - Search type (semantic is deferred)
+ *
+ * Response:
+ *   { results: SessionResponse[] }
+ */
+export async function handleApiSearch(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (req.method === "OPTIONS") {
+    return sendCorsPrelight(res);
+  }
+
+  const authHeader = req.headers.authorization;
+  const auth = await validateApiKey(authHeader);
+
+  if ("error" in auth) {
+    return sendJson(res, { error: auth.error }, auth.status);
+  }
+
+  try {
+    const query = parseQuery(req.url || "");
+    const q = query.q || "";
+    const limit = Math.min(parseInt(query.limit || "20", 10) || 20, 50);
+    const searchType = query.type || "fulltext";
+
+    if (!q) {
+      return sendJson(res, { error: "Missing 'q' query parameter" }, 400);
+    }
+
+    // Semantic search is deferred - only fulltext is implemented
+    if (searchType !== "fulltext") {
+      return sendJson(res, {
+        error: "Only 'fulltext' search type is supported. Semantic search is deferred.",
+      }, 400);
+    }
+
+    // Full-text search using PocketBase's ~ operator on searchableText
+    // WHY searchableText: This field aggregates all message content for the session,
+    // making it searchable without needing to join messages
+    const sessions = await auth.pb.collection("sessions").getList(1, limit, {
+      filter: `user = "${auth.user.id}" && searchableText ~ "${q}"`,
+      sort: "-updated",
+    });
+
+    const results = sessions.items.map((s) =>
+      toSessionResponse(s as Record<string, unknown>)
+    );
+
+    sendJson(res, { results });
+  } catch (e) {
+    console.error("Search error:", e);
+    sendJson(res, { error: String(e) }, 500);
+  }
+}
+
+/**
+ * GET /api/stats - Get user statistics.
+ *
+ * Response:
+ *   {
+ *     sessionCount: number,
+ *     messageCount: number,
+ *     totalTokens: number,
+ *     totalCost: number,
+ *     totalDurationMs: number,
+ *     modelUsage: Record<string, { tokens, cost, sessions }>
+ *   }
+ */
+export async function handleApiStats(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (req.method === "OPTIONS") {
+    return sendCorsPrelight(res);
+  }
+
+  const authHeader = req.headers.authorization;
+  const auth = await validateApiKey(authHeader);
+
+  if ("error" in auth) {
+    return sendJson(res, { error: auth.error }, auth.status);
+  }
+
+  try {
+    // Fetch all sessions for the user
+    const sessions = await auth.pb.collection("sessions").getFullList({
+      filter: `user = "${auth.user.id}"`,
+    });
+
+    let messageCount = 0;
+    let totalTokens = 0;
+    let totalCost = 0;
+    let totalDurationMs = 0;
+    const modelUsage: Record<string, { tokens: number; cost: number; sessions: number }> = {};
+
+    for (const session of sessions) {
+      const s = session as Record<string, unknown>;
+      messageCount += (s.messageCount as number) || 0;
+      totalTokens += (s.totalTokens as number) || 0;
+      totalCost += (s.cost as number) || 0;
+      totalDurationMs += (s.durationMs as number) || 0;
+
+      const model = (s.model as string) || "unknown";
+      if (!modelUsage[model]) {
+        modelUsage[model] = { tokens: 0, cost: 0, sessions: 0 };
+      }
+      modelUsage[model].tokens += (s.totalTokens as number) || 0;
+      modelUsage[model].cost += (s.cost as number) || 0;
+      modelUsage[model].sessions += 1;
+    }
+
+    sendJson(res, {
+      sessionCount: sessions.length,
+      messageCount,
+      totalTokens,
+      totalCost,
+      totalDurationMs,
+      modelUsage,
+    });
+  } catch (e) {
+    console.error("Stats error:", e);
+    sendJson(res, { error: String(e) }, 500);
+  }
+}

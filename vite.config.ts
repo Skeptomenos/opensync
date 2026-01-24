@@ -6,6 +6,10 @@ import {
   handleSyncMessage,
   handleSyncBatch,
   handleSyncSessionsList,
+  handleApiSessions,
+  handleApiSessionsGet,
+  handleApiSearch,
+  handleApiStats,
 } from "./server/sync";
 
 export default defineConfig({
@@ -51,6 +55,24 @@ export default defineConfig({
 
         server.middlewares.use("/sync/sessions/list", (req, res) => {
           handleSyncSessionsList(req, res);
+        });
+
+        // Read API endpoints for external consumers (plugins, scripts)
+        // Note: These require API key authentication (same as sync endpoints)
+        server.middlewares.use("/api/sessions/get", (req, res) => {
+          handleApiSessionsGet(req, res);
+        });
+
+        server.middlewares.use("/api/sessions", (req, res) => {
+          handleApiSessions(req, res);
+        });
+
+        server.middlewares.use("/api/search", (req, res) => {
+          handleApiSearch(req, res);
+        });
+
+        server.middlewares.use("/api/stats", (req, res) => {
+          handleApiStats(req, res);
         });
       },
     },

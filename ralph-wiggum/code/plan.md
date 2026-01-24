@@ -57,7 +57,7 @@
 | | **Phase 6: Sync API (~4h)** | | |
 | [x] | **6.1**: Create sync endpoints (session, message, batch) | 90m | Created server/sync.ts with POST /sync/session, POST /sync/message, POST /sync/batch, GET /sync/sessions/list. Uses Pocketbase superuser auth for API key lookup. Added to vite.config.ts as middleware. Fixed externalId unique index (was globally unique, now per-user). Fixed parts order=0 validation. All tests pass. Done in v1.3.0-pb.26. |
 | [x] | **6.2**: Implement API key validation middleware | 30m | Implemented in server/sync.ts validateApiKey(). Supports Bearer os_* and osk_* formats. Returns 401 for invalid/missing keys. Uses superuser auth to lookup user by apiKey field. Done in v1.3.0-pb.26. |
-| [ ] | **6.3**: Create read API endpoints (list, get, search) | 45m | `GET /api/sessions` returns JSON |
+| [x] | **6.3**: Create read API endpoints (list, get, search) | 45m | Created GET /api/sessions (list with limit), GET /api/sessions/get?id= (single session with messages/parts), GET /api/search?q=&type=fulltext (full-text search), GET /api/stats (user statistics). All endpoints use API key auth. Test script at scripts/test-read-api.mjs. Done in v1.3.0-pb.27. |
 | [ ] | **6.4**: Create export endpoints (markdown, JSON, CSV) | 45m | Download button triggers file download |
 | [ ] | **6.5**: Update plugin to v2.0 for Pocketbase | 30m | Plugin syncs to new endpoints |
 | | | | |
@@ -92,10 +92,10 @@
 | Phase 3: Data Hooks | 9 | 6h | 9 |
 | Phase 4: Mutations | 4 | 3h | 4 |
 | Phase 5: Pages | 6 | 8h | 6 |
-| Phase 6: API | 5 | 4h | 2 |
+| Phase 6: API | 5 | 4h | 3 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **35** |
+| **Total** | **47** | **~32h** | **36** |
 
 ---
 
