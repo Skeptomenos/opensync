@@ -13,7 +13,7 @@
 | | **Phase 1: Pocketbase Setup (~2h)** | | |
 | [x] | **1.1**: Download Pocketbase binary (macOS + Linux) | 15m | `./pocketbase serve` starts, admin UI at `:8090/_/` |
 | [x] | **1.2**: Create `users` collection with schema + indexes | 15m | Extended built-in auth collection with custom fields: autheliaId, avatarUrl, profilePhotoId, apiKey, apiKeyCreatedAt, enabledAgents. Added indexes on autheliaId and apiKey. |
-| [ ] | **1.3**: Create `sessions` collection with schema + indexes | 15m | Can create/read session via admin UI |
+| [x] | **1.3**: Create `sessions` collection with schema + indexes | 15m | Created sessions collection with 23 fields (user relation, externalId, title, projectPath, projectName, model, provider, source, promptTokens, completionTokens, totalTokens, cost, durationMs, isPublic, publicSlug, searchableText, summary, messageCount, evalReady, reviewedAt, evalNotes, evalTags, created, updated). Added 7 indexes including user, external_id, user_external (unique), user_source, user_eval_ready, user_updated. Migrations: 1769261723, 1769261916, 1769262012. |
 | [ ] | **1.4**: Create `messages` collection with schema + indexes | 15m | Can create/read message via admin UI |
 | [ ] | **1.5**: Create `parts` collection with schema + indexes | 10m | Can create/read part via admin UI |
 | [ ] | **1.6**: Create `apiLogs` collection with schema + indexes | 10m | Can create/read log via admin UI |
@@ -87,7 +87,7 @@
 
 | Phase | Tasks | Est. Time | Completed |
 |-------|-------|-----------|-----------|
-| Phase 1: Setup | 8 | 2h | 2 |
+| Phase 1: Setup | 8 | 2h | 3 |
 | Phase 2: SDK & Auth | 7 | 3h | 0 |
 | Phase 3: Data Hooks | 9 | 6h | 0 |
 | Phase 4: Mutations | 4 | 3h | 0 |
@@ -95,7 +95,7 @@
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **1** |
+| **Total** | **47** | **~32h** | **3** |
 
 ---
 
@@ -111,6 +111,7 @@
 - **Rollback:** Keep Convex code until Phase 7 in case of issues
 - **Auth:** Already Authelia-compatible - `src/lib/auth.tsx` uses `/api/me` header pass-through
 - **Analytics Strategy:** Single `useAnalytics` hook fetches all sessions once, computes summary/daily/model/project stats client-side to avoid multiple round-trips
+- **Known Issue:** Build fails due to pre-existing TypeScript errors in User type (missing profilePictureUrl, firstName, lastName). These are from the Authelia migration (commit 82f2456) and will be resolved when src/lib/types.ts is created in Task 2.3.
 
 ---
 
