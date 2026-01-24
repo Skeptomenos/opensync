@@ -44,7 +44,7 @@
 | [x] | **4.1**: Session mutations (update, delete, visibility) | 45m | Added setVisibility (generates nanoid slug), updateSession, deleteSession (cascade delete: parts → messages → embeddings → session) to useSession hook. Exported SetVisibilityResult type. Build passes. |
 | [x] | **4.2**: User mutations (API key gen/revoke, agents) | 45m | Implemented in useUser.ts: generateApiKey() creates os_[32 hex chars], revokeApiKey() clears apiKey field, updateEnabledAgents() updates agent list. All mutations use pb.collection().update(), update local state immediately, and are properly typed. Build passes. |
 | [x] | **4.3**: Eval mutations (ready, tags, notes) | 30m | Implemented in useEvals.ts: setEvalReady, updateEvalNotes, updateEvalTags. All mutations use pb.collection().update() and refetch on success. Build passes. |
-| [ ] | **4.4**: Bulk operations (multi-delete, export) | 45m | Delete 10 sessions at once works |
+| [x] | **4.4**: Bulk operations (multi-delete, export) | 45m | Created useBulkOperations hook with deleteMultipleSessions (cascade: parts->messages->embeddings->sessions) and exportSessions (JSON/CSV/Markdown). Includes progress callback, error handling. Build passes. Test scripts in scripts/test-bulk-delete.mjs and scripts/verify-bulk-ops.mjs. |
 | | | | |
 | | **Phase 5: Page Migration (~8h)** | | |
 | [ ] | **5.1**: Migrate Dashboard.tsx (19 hooks) | 3h | All charts, stats, session list work |
@@ -90,12 +90,12 @@
 | Phase 1: Setup | 8 | 2h | 8 |
 | Phase 2: SDK & Auth | 7 | 3h | 7 |
 | Phase 3: Data Hooks | 9 | 6h | 9 |
-| Phase 4: Mutations | 4 | 3h | 3 |
+| Phase 4: Mutations | 4 | 3h | 4 |
 | Phase 5: Pages | 6 | 8h | 0 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **26** |
+| **Total** | **47** | **~32h** | **27** |
 
 ---
 

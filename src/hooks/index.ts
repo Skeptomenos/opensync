@@ -72,3 +72,13 @@ export type {
   UseEvalsOptions,
   UseEvalsResult,
 } from "./useEvals";
+
+export { useBulkOperations } from "./useBulkOperations";
+export type {
+  BulkExportFormat,
+  BulkDeleteResult,
+  BulkExportResult,
+  BulkOperationProgress,
+  UseBulkOperationsOptions,
+  UseBulkOperationsResult,
+} from "./useBulkOperations";
