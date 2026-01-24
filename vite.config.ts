@@ -1,6 +1,12 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import {
+  handleSyncSession,
+  handleSyncMessage,
+  handleSyncBatch,
+  handleSyncSessionsList,
+} from "./server/sync";
 
 export default defineConfig({
   plugins: [
@@ -27,6 +33,24 @@ export default defineConfig({
             res.statusCode = 401;
             res.end(JSON.stringify({ error: "Not authenticated" }));
           }
+        });
+
+        // Sync API endpoints for opencode-sync and claude-code-sync plugins
+        // These endpoints handle session and message synchronization with Pocketbase
+        server.middlewares.use("/sync/session", (req, res) => {
+          handleSyncSession(req, res);
+        });
+
+        server.middlewares.use("/sync/message", (req, res) => {
+          handleSyncMessage(req, res);
+        });
+
+        server.middlewares.use("/sync/batch", (req, res) => {
+          handleSyncBatch(req, res);
+        });
+
+        server.middlewares.use("/sync/sessions/list", (req, res) => {
+          handleSyncSessionsList(req, res);
         });
       },
     },
