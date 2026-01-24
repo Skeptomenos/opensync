@@ -35,3 +35,16 @@ export type {
   UserStats,
   DeleteResult,
 } from "./useUser";
+
+export { useSearchSessions, useSearchMessages } from "./useSearch";
+export type {
+  SearchMode,
+  SessionSearchResult,
+  MessageSearchResult,
+  SessionSearchResults,
+  MessageSearchResults,
+  UseSearchSessionsOptions,
+  UseSearchMessagesOptions,
+  UseSearchSessionsResult,
+  UseSearchMessagesResult,
+} from "./useSearch";
