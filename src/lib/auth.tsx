@@ -2,13 +2,10 @@
 // Reads user info from headers passed by Traefik/Authelia
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { type User, toUser } from "./types";
 
-interface User {
-  id: string;
-  email: string;
-  name?: string;
-  groups?: string[];
-}
+// Re-export User type for consumers that import from auth.tsx
+export type { User } from "./types";
 
 interface AuthState {
   user: User | null;
@@ -43,13 +40,14 @@ export function AutheliaAuthProvider({ children }: { children: ReactNode }) {
         if (res.ok) {
           const data = await res.json();
           if (data.email) {
+            // Use toUser to derive firstName/lastName from name for UI compatibility
+            const user = toUser({
+              email: data.email,
+              name: data.name,
+              groups: data.groups,
+            });
             setAuthState({
-              user: {
-                id: data.email, // Use email as ID for simplicity
-                email: data.email,
-                name: data.name,
-                groups: data.groups,
-              },
+              user,
               isLoading: false,
               isAuthenticated: true,
               signIn: () => {

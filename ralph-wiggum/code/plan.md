@@ -23,7 +23,7 @@
 | | **Phase 2: SDK & Auth (~3h)** | | |
 | [x] | **2.1**: Install pocketbase SDK | 10m | Installed pocketbase ^0.26.6. Import verified via tsx test. Pre-existing build errors (User type missing fields) documented in Task 2.3. |
 | [x] | **2.2**: Create `src/lib/pocketbase.ts` client setup | 30m | Created singleton client with autoCancellation(false), checkHealth() and isHealthy() helpers. Added /api/health to Vite proxy. Verified: client connects, health check returns {"code":200,"message":"API is healthy."}. |
-| [ ] | **2.3**: Create `src/lib/types.ts` for all collections | 45m | Types compile, match PB schema exactly |
+| [x] | **2.3**: Create `src/lib/types.ts` for all collections | 45m | Created comprehensive types for all 7 collections (users, sessions, messages, parts, apiLogs, sessionEmbeddings, messageEmbeddings). Added User type with firstName/lastName derived from name field for UI compatibility. Updated auth.tsx to use toUser() helper. Build passes. |
 | [ ] | **2.4**: Create PocketbaseProvider context | 30m | Hook returns client instance in components |
 | [ ] | **2.5**: Wire Authelia headers to PB user sync | 45m | Visit app -> user created in PB `users` collection |
 | [ ] | **2.6**: Update `main.tsx` with PocketbaseProvider | 15m | App loads without errors, provider wraps app |
@@ -88,14 +88,14 @@
 | Phase | Tasks | Est. Time | Completed |
 |-------|-------|-----------|-----------|
 | Phase 1: Setup | 8 | 2h | 8 |
-| Phase 2: SDK & Auth | 7 | 3h | 2 |
+| Phase 2: SDK & Auth | 7 | 3h | 3 |
 | Phase 3: Data Hooks | 9 | 6h | 0 |
 | Phase 4: Mutations | 4 | 3h | 0 |
 | Phase 5: Pages | 6 | 8h | 0 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **10** |
+| **Total** | **47** | **~32h** | **11** |
 
 ---
 
@@ -111,7 +111,7 @@
 - **Rollback:** Keep Convex code until Phase 7 in case of issues
 - **Auth:** Already Authelia-compatible - `src/lib/auth.tsx` uses `/api/me` header pass-through
 - **Analytics Strategy:** Single `useAnalytics` hook fetches all sessions once, computes summary/daily/model/project stats client-side to avoid multiple round-trips
-- **Known Issue:** Build fails due to pre-existing TypeScript errors in User type (missing profilePictureUrl, firstName, lastName). These are from the Authelia migration (commit 82f2456) and will be resolved when src/lib/types.ts is created in Task 2.3.
+- **Resolved:** Task 2.3 created src/lib/types.ts with comprehensive Pocketbase types. The User type now includes firstName/lastName derived from the name field via toUser() helper, fixing TypeScript errors in Dashboard, Settings, Context, Evals, and Header components.
 
 ---
 
