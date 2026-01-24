@@ -14,7 +14,7 @@
 | [x] | **1.1**: Download Pocketbase binary (macOS + Linux) | 15m | `./pocketbase serve` starts, admin UI at `:8090/_/` |
 | [x] | **1.2**: Create `users` collection with schema + indexes | 15m | Extended built-in auth collection with custom fields: autheliaId, avatarUrl, profilePhotoId, apiKey, apiKeyCreatedAt, enabledAgents. Added indexes on autheliaId and apiKey. |
 | [x] | **1.3**: Create `sessions` collection with schema + indexes | 15m | Created sessions collection with 23 fields (user relation, externalId, title, projectPath, projectName, model, provider, source, promptTokens, completionTokens, totalTokens, cost, durationMs, isPublic, publicSlug, searchableText, summary, messageCount, evalReady, reviewedAt, evalNotes, evalTags, created, updated). Added 7 indexes including user, external_id, user_external (unique), user_source, user_eval_ready, user_updated. Migrations: 1769261723, 1769261916, 1769262012. |
-| [ ] | **1.4**: Create `messages` collection with schema + indexes | 15m | Can create/read message via admin UI |
+| [x] | **1.4**: Create `messages` collection with schema + indexes | 15m | Created messages collection with 11 fields (session relation, externalId, role, textContent, model, promptTokens, completionTokens, durationMs, created, updated). Added 3 indexes: idx_messages_session, idx_messages_session_created, idx_messages_external_id (unique). Migration: 1769262312. |
 | [ ] | **1.5**: Create `parts` collection with schema + indexes | 10m | Can create/read part via admin UI |
 | [ ] | **1.6**: Create `apiLogs` collection with schema + indexes | 10m | Can create/read log via admin UI |
 | [ ] | **1.7**: Configure CORS for `localhost:5173` | 10m | No CORS errors in browser console |
@@ -87,7 +87,7 @@
 
 | Phase | Tasks | Est. Time | Completed |
 |-------|-------|-----------|-----------|
-| Phase 1: Setup | 8 | 2h | 3 |
+| Phase 1: Setup | 8 | 2h | 4 |
 | Phase 2: SDK & Auth | 7 | 3h | 0 |
 | Phase 3: Data Hooks | 9 | 6h | 0 |
 | Phase 4: Mutations | 4 | 3h | 0 |
@@ -95,7 +95,7 @@
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **3** |
+| **Total** | **47** | **~32h** | **4** |
 
 ---
 
