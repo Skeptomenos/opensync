@@ -27,7 +27,7 @@
 | [x] | **2.4**: Create PocketbaseProvider context | 30m | Created PocketbaseProvider context in src/lib/pocketbase.tsx. Renamed from .ts to .tsx for JSX support. Added: PocketbaseProvider wraps app with connection health checking, usePocketbase() hook returning {client, isConnecting, isConnected, error, retryConnection}, usePocketbaseClient() convenience hook. Build passes. |
 | [x] | **2.5**: Wire Authelia headers to PB user sync | 45m | Created src/lib/userSync.ts with syncUser() getOrCreate function. Uses deterministic password derived from email SHA-256 hash to enable user lookup via PB auth (since API rules restrict list/view). Updated auth.tsx to call syncUser() after /api/me. Tested: users created in PB with autheliaId=email. Moved pocketbase binary to bin/ to fix Vite esbuild error. |
 | [x] | **2.6**: Update `main.tsx` with PocketbaseProvider | 15m | Replaced ConvexProvider with PocketbaseProvider. Provider order: Pocketbase → Authelia → BrowserRouter → App. Build passes, bundle size reduced ~58KB. |
-| [ ] | **2.7**: Benchmark PB realtime subscriptions | 30m | Sub latency <500ms for session updates |
+| [x] | **2.7**: Benchmark PB realtime subscriptions | 30m | PASS: P95 latency ~5ms (well under 500ms target). Created scripts/benchmark-realtime.mjs using eventsource polyfill for Node.js. Tests CREATE and UPDATE operations with 10 trials each. Subscription uses SSE (Server-Sent Events) via Pocketbase's realtime API. |
 | | | | |
 | | **Phase 3: Data Hooks (~6h)** | | |
 | [ ] | **3.1**: Create `useSessions` hook (list, filter, paginate) | 45m | Dashboard shows session list |
@@ -88,14 +88,14 @@
 | Phase | Tasks | Est. Time | Completed |
 |-------|-------|-----------|-----------|
 | Phase 1: Setup | 8 | 2h | 8 |
-| Phase 2: SDK & Auth | 7 | 3h | 6 |
+| Phase 2: SDK & Auth | 7 | 3h | 7 |
 | Phase 3: Data Hooks | 9 | 6h | 0 |
 | Phase 4: Mutations | 4 | 3h | 0 |
 | Phase 5: Pages | 6 | 8h | 0 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **14** |
+| **Total** | **47** | **~32h** | **15** |
 
 ---
 
