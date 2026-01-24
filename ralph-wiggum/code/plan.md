@@ -22,7 +22,7 @@
 | | | | |
 | | **Phase 2: SDK & Auth (~3h)** | | |
 | [x] | **2.1**: Install pocketbase SDK | 10m | Installed pocketbase ^0.26.6. Import verified via tsx test. Pre-existing build errors (User type missing fields) documented in Task 2.3. |
-| [ ] | **2.2**: Create `src/lib/pocketbase.ts` client setup | 30m | Client connects, can ping `/api/health` |
+| [x] | **2.2**: Create `src/lib/pocketbase.ts` client setup | 30m | Created singleton client with autoCancellation(false), checkHealth() and isHealthy() helpers. Added /api/health to Vite proxy. Verified: client connects, health check returns {"code":200,"message":"API is healthy."}. |
 | [ ] | **2.3**: Create `src/lib/types.ts` for all collections | 45m | Types compile, match PB schema exactly |
 | [ ] | **2.4**: Create PocketbaseProvider context | 30m | Hook returns client instance in components |
 | [ ] | **2.5**: Wire Authelia headers to PB user sync | 45m | Visit app -> user created in PB `users` collection |
@@ -88,14 +88,14 @@
 | Phase | Tasks | Est. Time | Completed |
 |-------|-------|-----------|-----------|
 | Phase 1: Setup | 8 | 2h | 8 |
-| Phase 2: SDK & Auth | 7 | 3h | 1 |
+| Phase 2: SDK & Auth | 7 | 3h | 2 |
 | Phase 3: Data Hooks | 9 | 6h | 0 |
 | Phase 4: Mutations | 4 | 3h | 0 |
 | Phase 5: Pages | 6 | 8h | 0 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **9** |
+| **Total** | **47** | **~32h** | **10** |
 
 ---
 

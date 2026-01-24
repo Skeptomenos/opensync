@@ -42,6 +42,10 @@ export default defineConfig({
       // Proxy Pocketbase API requests to avoid CORS during development.
       // In production, Traefik handles this by routing both to the same origin.
       // All Pocketbase endpoints start with /api/ or /_/ (admin).
+      "/api/health": {
+        target: "http://localhost:8090",
+        changeOrigin: true,
+      },
       "/api/collections": {
         target: "http://localhost:8090",
         changeOrigin: true,
