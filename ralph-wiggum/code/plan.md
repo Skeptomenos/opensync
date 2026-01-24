@@ -12,7 +12,7 @@
 |--------|------|------|---------------------|
 | | **Phase 1: Pocketbase Setup (~2h)** | | |
 | [x] | **1.1**: Download Pocketbase binary (macOS + Linux) | 15m | `./pocketbase serve` starts, admin UI at `:8090/_/` |
-| [ ] | **1.2**: Create `users` collection with schema + indexes | 15m | Can create/read user via admin UI |
+| [x] | **1.2**: Create `users` collection with schema + indexes | 15m | Extended built-in auth collection with custom fields: autheliaId, avatarUrl, profilePhotoId, apiKey, apiKeyCreatedAt, enabledAgents. Added indexes on autheliaId and apiKey. |
 | [ ] | **1.3**: Create `sessions` collection with schema + indexes | 15m | Can create/read session via admin UI |
 | [ ] | **1.4**: Create `messages` collection with schema + indexes | 15m | Can create/read message via admin UI |
 | [ ] | **1.5**: Create `parts` collection with schema + indexes | 10m | Can create/read part via admin UI |
@@ -87,7 +87,7 @@
 
 | Phase | Tasks | Est. Time | Completed |
 |-------|-------|-----------|-----------|
-| Phase 1: Setup | 8 | 2h | 1 |
+| Phase 1: Setup | 8 | 2h | 2 |
 | Phase 2: SDK & Auth | 7 | 3h | 0 |
 | Phase 3: Data Hooks | 9 | 6h | 0 |
 | Phase 4: Mutations | 4 | 3h | 0 |
