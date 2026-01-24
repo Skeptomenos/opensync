@@ -27,3 +27,11 @@ export type {
   UseMessagesResult,
   MessageWithParts,
 } from "./useMessages";
+
+export { useUser } from "./useUser";
+export type {
+  UseUserOptions,
+  UseUserResult,
+  UserStats,
+  DeleteResult,
+} from "./useUser";
