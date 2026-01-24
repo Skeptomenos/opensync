@@ -1,6 +1,20 @@
+/**
+ * SessionViewer - Full session detail view with actions
+ * 
+ * Migrated from Convex to Pocketbase hooks.
+ * 
+ * Changes from Convex version:
+ * - useMutation(api.sessions.setVisibility) → useSession().setVisibility
+ * - useMutation(api.sessions.remove) → useSession().deleteSession
+ * - useQuery(api.sessions.getMarkdown) → useSession().markdown
+ * - Id<"sessions"> and Id<"messages"> → string
+ * 
+ * @see ralph-wiggum/specs/POCKETBASE_MIGRATION.md - Migration spec
+ * @see src/hooks/useSession.ts - Pocketbase hook implementation
+ */
+
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { useSession } from "../hooks/useSession";
 import { cn } from "../lib/utils";
 import { ConfirmModal } from "./ConfirmModal";
 import ReactMarkdown from "react-markdown";
@@ -20,12 +34,31 @@ import {
   Cpu,
   Clock,
   Coins,
+  Loader2,
 } from "lucide-react";
-import type { Id } from "../../convex/_generated/dataModel";
+
+// ============================================================================
+// Types
+// ============================================================================
 
 interface SessionViewerProps {
+  /** Session ID to display. The component fetches session data internally. */
+  sessionId: string;
+  /** Enable realtime updates for the session */
+  realtime?: boolean;
+  /** Callback when session is deleted */
+  onDeleted?: () => void;
+}
+
+/**
+ * Legacy props interface for backward compatibility.
+ * Use SessionViewerProps (sessionId-based) for new code.
+ * 
+ * @deprecated Use sessionId prop instead of passing session/messages directly
+ */
+interface LegacySessionViewerProps {
   session: {
-    _id: Id<"sessions">;
+    id: string;
     title?: string;
     projectPath?: string;
     model?: string;
@@ -36,24 +69,286 @@ interface SessionViewerProps {
     durationMs?: number;
     isPublic: boolean;
     publicSlug?: string;
-    createdAt: number;
+    created: string;
   };
   messages: Array<{
-    _id: Id<"messages">;
+    id: string;
     role: "user" | "assistant" | "system" | "unknown";
     textContent?: string;
     createdAt: number;
-    parts: Array<{ type: string; content: any }>;
+    parts: Array<{ type: string; content: unknown }>;
   }>;
+  /** Markdown content (pre-generated) */
+  markdown?: string;
+  /** Toggle visibility callback */
+  onToggleVisibility?: (isPublic: boolean) => Promise<void>;
+  /** Delete callback */
+  onDelete?: () => Promise<void>;
+  /** Whether mutation is in progress */
+  isMutating?: boolean;
 }
 
-export function SessionViewer({ session, messages }: SessionViewerProps) {
+// ============================================================================
+// Main Component
+// ============================================================================
+
+/**
+ * SessionViewer displays a full session with messages and actions.
+ * 
+ * Two usage modes:
+ * 1. **Recommended**: Pass `sessionId` - component handles data fetching
+ * 2. **Legacy/External**: Pass `session` and `messages` props directly
+ * 
+ * @example
+ * ```tsx
+ * // Recommended: Let component handle fetching
+ * <SessionViewer sessionId="abc123" realtime />
+ * 
+ * // Legacy: Pass data externally (for Dashboard inline rendering)
+ * <SessionViewer 
+ *   session={sessionData} 
+ *   messages={messagesList}
+ *   markdown={md}
+ *   onToggleVisibility={handleToggle}
+ *   onDelete={handleDelete}
+ * />
+ * ```
+ */
+export function SessionViewer(
+  props: SessionViewerProps | LegacySessionViewerProps
+) {
+  // Detect which props mode is being used
+  if ("sessionId" in props) {
+    return <SessionViewerInternal {...props} />;
+  } else {
+    return <SessionViewerLegacy {...props} />;
+  }
+}
+
+// ============================================================================
+// Internal Implementation (uses useSession hook)
+// ============================================================================
+
+function SessionViewerInternal({ 
+  sessionId, 
+  realtime = false,
+  onDeleted,
+}: SessionViewerProps) {
   const [copied, setCopied] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const setVisibility = useMutation(api.sessions.setVisibility);
-  const deleteSession = useMutation(api.sessions.remove);
-  const markdown = useQuery(api.sessions.getMarkdown, { sessionId: session._id });
+  const {
+    session,
+    isLoading,
+    error,
+    markdown,
+    setVisibility,
+    deleteSession,
+    isMutating,
+  } = useSession({ sessionId, realtime });
+
+  const handleCopy = async () => {
+    if (markdown) {
+      await navigator.clipboard.writeText(markdown);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleDownload = () => {
+    if (markdown && session) {
+      const blob = new Blob([markdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${session.title || "session"}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleToggleVisibility = async () => {
+    if (session) {
+      await setVisibility(!session.isPublic);
+    }
+  };
+
+  const handleDelete = () => {
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    await deleteSession();
+    setShowDeleteModal(false);
+    onDeleted?.();
+  };
+
+  const formatDuration = (ms?: number) => {
+    if (!ms) return "N/A";
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center text-destructive">
+        <p>Error: {error}</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="h-full flex items-center justify-center text-muted-foreground">
+        <p>Session not found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="border-b border-border p-4 bg-card">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">
+              {session.title || "Untitled Session"}
+            </h1>
+            <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
+              {session.projectPath && <span>{session.projectPath}</span>}
+              {session.model && (
+                <>
+                  <span>·</span>
+                  <span className="flex items-center gap-1">
+                    <Cpu className="h-3 w-3" />
+                    {session.model}
+                  </span>
+                </>
+              )}
+              <span>·</span>
+              <span className="flex items-center gap-1">
+                <Cpu className="h-3 w-3" />
+                {session.totalTokens.toLocaleString()} tokens
+              </span>
+              <span>·</span>
+              <span className="flex items-center gap-1">
+                <Coins className="h-3 w-3" />
+                ${session.cost.toFixed(4)}
+              </span>
+              {session.durationMs && (
+                <>
+                  <span>·</span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {formatDuration(session.durationMs)}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleCopy}
+              disabled={isMutating}
+              className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-foreground disabled:opacity-50"
+              title="Copy as Markdown"
+            >
+              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={handleDownload}
+              disabled={isMutating}
+              className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-foreground disabled:opacity-50"
+              title="Download"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handleToggleVisibility}
+              disabled={isMutating}
+              className={cn(
+                "p-2 rounded hover:bg-accent disabled:opacity-50",
+                session.isPublic ? "text-green-500" : "text-muted-foreground hover:text-foreground"
+              )}
+              title={session.isPublic ? "Make Private" : "Make Public"}
+            >
+              {isMutating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : session.isPublic ? (
+                <Globe className="h-4 w-4" />
+              ) : (
+                <Lock className="h-4 w-4" />
+              )}
+            </button>
+            {session.isPublic && session.publicSlug && (
+              <a
+                href={`/s/${session.publicSlug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                title="Open Public Link"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            )}
+            <button
+              onClick={handleDelete}
+              disabled={isMutating}
+              className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-destructive disabled:opacity-50"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {session.messages.map((message) => (
+          <MessageBlock key={message.id} message={message} />
+        ))}
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title="Delete Session"
+        message="Delete this session? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
+    </div>
+  );
+}
+
+// ============================================================================
+// Legacy Implementation (receives props externally)
+// ============================================================================
+
+function SessionViewerLegacy({ 
+  session, 
+  messages,
+  markdown,
+  onToggleVisibility,
+  onDelete,
+  isMutating = false,
+}: LegacySessionViewerProps) {
+  const [copied, setCopied] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleCopy = async () => {
     if (markdown) {
@@ -76,10 +371,7 @@ export function SessionViewer({ session, messages }: SessionViewerProps) {
   };
 
   const handleToggleVisibility = async () => {
-    await setVisibility({
-      sessionId: session._id,
-      isPublic: !session.isPublic,
-    });
+    await onToggleVisibility?.(!session.isPublic);
   };
 
   const handleDelete = () => {
@@ -87,7 +379,7 @@ export function SessionViewer({ session, messages }: SessionViewerProps) {
   };
 
   const confirmDelete = async () => {
-    await deleteSession({ sessionId: session._id });
+    await onDelete?.();
   };
 
   const formatDuration = (ms?: number) => {
@@ -142,28 +434,39 @@ export function SessionViewer({ session, messages }: SessionViewerProps) {
           <div className="flex items-center gap-1">
             <button
               onClick={handleCopy}
-              className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+              disabled={isMutating || !markdown}
+              className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-foreground disabled:opacity-50"
               title="Copy as Markdown"
             >
               {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
             </button>
             <button
               onClick={handleDownload}
-              className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+              disabled={isMutating || !markdown}
+              className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-foreground disabled:opacity-50"
               title="Download"
             >
               <Download className="h-4 w-4" />
             </button>
-            <button
-              onClick={handleToggleVisibility}
-              className={cn(
-                "p-2 rounded hover:bg-accent",
-                session.isPublic ? "text-green-500" : "text-muted-foreground hover:text-foreground"
-              )}
-              title={session.isPublic ? "Make Private" : "Make Public"}
-            >
-              {session.isPublic ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-            </button>
+            {onToggleVisibility && (
+              <button
+                onClick={handleToggleVisibility}
+                disabled={isMutating}
+                className={cn(
+                  "p-2 rounded hover:bg-accent disabled:opacity-50",
+                  session.isPublic ? "text-green-500" : "text-muted-foreground hover:text-foreground"
+                )}
+                title={session.isPublic ? "Make Private" : "Make Public"}
+              >
+                {isMutating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : session.isPublic ? (
+                  <Globe className="h-4 w-4" />
+                ) : (
+                  <Lock className="h-4 w-4" />
+                )}
+              </button>
+            )}
             {session.isPublic && session.publicSlug && (
               <a
                 href={`/s/${session.publicSlug}`}
@@ -175,13 +478,16 @@ export function SessionViewer({ session, messages }: SessionViewerProps) {
                 <ExternalLink className="h-4 w-4" />
               </a>
             )}
-            <button
-              onClick={handleDelete}
-              className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-destructive"
-              title="Delete"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            {onDelete && (
+              <button
+                onClick={handleDelete}
+                disabled={isMutating}
+                className="p-2 rounded hover:bg-accent text-muted-foreground hover:text-destructive disabled:opacity-50"
+                title="Delete"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -189,31 +495,45 @@ export function SessionViewer({ session, messages }: SessionViewerProps) {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {messages.map((message) => (
-          <MessageBlock key={message._id} message={message} />
+          <MessageBlock key={message.id} message={message} />
         ))}
       </div>
 
       {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={confirmDelete}
-        title="Delete Session"
-        message="Delete this session? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
-        variant="danger"
-      />
+      {onDelete && (
+        <ConfirmModal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={confirmDelete}
+          title="Delete Session"
+          message="Delete this session? This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+          variant="danger"
+        />
+      )}
     </div>
   );
 }
 
-function MessageBlock({ message }: { message: any }) {
+// ============================================================================
+// Message Components
+// ============================================================================
+
+interface MessageProps {
+  id: string;
+  role: "user" | "assistant" | "system" | "unknown";
+  textContent?: string;
+  createdAt: number;
+  parts: Array<{ type: string; content: unknown }>;
+}
+
+function MessageBlock({ message }: { message: MessageProps }) {
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
 
   // Check if parts have any displayable content
-  const hasPartsContent = message.parts?.some((part: any) => {
+  const hasPartsContent = message.parts?.some((part) => {
     if (part.type === "text") {
       const text = getTextContent(part.content);
       return text && text.trim().length > 0;
@@ -257,7 +577,7 @@ function MessageBlock({ message }: { message: any }) {
             <div className={cn("prose prose-sm max-w-none", isUser ? "prose-invert" : "dark:prose-invert")}>
               <ReactMarkdown
                 components={{
-                  code({ node, inline, className, children, ...props }: any) {
+                  code({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode }) {
                     const match = /language-(\w+)/.exec(className || "");
                     return !inline && match ? (
                       <SyntaxHighlighter
@@ -276,12 +596,12 @@ function MessageBlock({ message }: { message: any }) {
                   },
                 }}
               >
-                {message.textContent}
+                {message.textContent || ""}
               </ReactMarkdown>
             </div>
           ) : (
             // Normal: render parts
-            message.parts?.map((part: any, i: number) => (
+            message.parts?.map((part, i: number) => (
               <PartRenderer key={i} part={part} isUser={isUser} />
             ))
           )}
@@ -294,33 +614,56 @@ function MessageBlock({ message }: { message: any }) {
   );
 }
 
-// Helper to extract text content from various formats
-// Claude Code may store content as { text: "..." } or { content: "..." }
-function getTextContent(content: any): string {
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Extract text content from various formats.
+ * Claude Code may store content as { text: "..." } or { content: "..." }
+ */
+function getTextContent(content: unknown): string {
   if (!content) return "";
   if (typeof content === "string") return content;
-  // Handle object formats from different plugins
-  return content.text || content.content || "";
+  if (typeof content === "object" && content !== null) {
+    const obj = content as Record<string, unknown>;
+    if (typeof obj.text === "string") return obj.text;
+    if (typeof obj.content === "string") return obj.content;
+  }
+  return "";
 }
 
-// Helper to extract tool call details from various formats
-function getToolCallDetails(content: any): { name: string; args: any } {
-  if (!content) return { name: "Unknown Tool", args: {} };
+/**
+ * Extract tool call details from various formats.
+ */
+function getToolCallDetails(content: unknown): { name: string; args: unknown } {
+  if (!content || typeof content !== "object") {
+    return { name: "Unknown Tool", args: {} };
+  }
+  const obj = content as Record<string, unknown>;
   return {
-    name: content.name || content.toolName || "Unknown Tool",
-    args: content.args || content.arguments || content.input || {},
+    name: (obj.name as string) || (obj.toolName as string) || "Unknown Tool",
+    args: obj.args || obj.arguments || obj.input || {},
   };
 }
 
-// Helper to extract tool result from various formats
-function getToolResult(content: any): string {
+/**
+ * Extract tool result from various formats.
+ */
+function getToolResult(content: unknown): string {
   if (!content) return "";
-  const result = content.result || content.output || content;
+  if (typeof content !== "object") return String(content);
+  const obj = content as Record<string, unknown>;
+  const result = obj.result ?? obj.output ?? content;
   if (typeof result === "string") return result;
   return JSON.stringify(result, null, 2);
 }
 
-function PartRenderer({ part, isUser }: { part: any; isUser: boolean }) {
+// ============================================================================
+// Part Renderer
+// ============================================================================
+
+function PartRenderer({ part, isUser }: { part: { type: string; content: unknown }; isUser: boolean }) {
   if (part.type === "text") {
     const textContent = getTextContent(part.content);
     
@@ -331,7 +674,7 @@ function PartRenderer({ part, isUser }: { part: any; isUser: boolean }) {
       <div className={cn("prose prose-sm max-w-none", isUser ? "prose-invert" : "dark:prose-invert")}>
         <ReactMarkdown
           components={{
-            code({ node, inline, className, children, ...props }: any) {
+            code({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode }) {
               const match = /language-(\w+)/.exec(className || "");
               return !inline && match ? (
                 <SyntaxHighlighter
