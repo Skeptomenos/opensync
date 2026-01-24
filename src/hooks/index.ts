@@ -12,3 +12,11 @@ export type {
   SortField,
   SortOrder,
 } from "./useSessions";
+
+export { useSession } from "./useSession";
+export type {
+  UseSessionOptions,
+  UseSessionResult,
+  SessionMessage,
+  SessionWithMessages,
+} from "./useSession";

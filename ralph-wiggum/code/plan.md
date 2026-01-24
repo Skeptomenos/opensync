@@ -31,7 +31,7 @@
 | | | | |
 | | **Phase 3: Data Hooks (~6h)** | | |
 | [x] | **3.1**: Create `useSessions` hook (list, filter, paginate) | 45m | Created src/hooks/useSessions.ts with list, filter (source, model, project, provider), sort, pagination, and realtime subscription support. Includes inferProvider helper. Build passes. |
-| [ ] | **3.2**: Create `useSession` hook (single + realtime) | 45m | SessionViewer loads session data |
+| [x] | **3.2**: Create `useSession` hook (single + realtime) | 45m | Created src/hooks/useSession.ts. Fetches single session by ID, expands messages with parts in 3 queries (session, messages, parts). Includes realtime subscriptions for session/messages/parts. Generates markdown client-side (mirrors convex/sessions.ts:getMarkdown). Exported via hooks/index.ts. Build passes. |
 | [ ] | **3.3**: Create `useMessages` hook (with parts expansion) | 45m | Messages render in SessionViewer |
 | [ ] | **3.4**: Create `useUser` hook (current user, stats) | 30m | Settings shows user info |
 | [ ] | **3.5**: Create `useSearch` hook (full-text) | 45m | Context page returns search results |
@@ -89,13 +89,13 @@
 |-------|-------|-----------|-----------|
 | Phase 1: Setup | 8 | 2h | 8 |
 | Phase 2: SDK & Auth | 7 | 3h | 7 |
-| Phase 3: Data Hooks | 9 | 6h | 1 |
+| Phase 3: Data Hooks | 9 | 6h | 2 |
 | Phase 4: Mutations | 4 | 3h | 0 |
 | Phase 5: Pages | 6 | 8h | 0 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **16** |
+| **Total** | **47** | **~32h** | **17** |
 
 ---
 
