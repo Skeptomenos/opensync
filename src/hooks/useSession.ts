@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { nanoid } from "nanoid";
 import { pb } from "../lib/pocketbase";
 import {
   Collections,
@@ -21,6 +22,7 @@ import {
   type Message,
   type Part,
   type SessionSource,
+  type UpdateSessionInput,
 } from "../lib/types";
 import { inferProvider } from "./useSessions";
 import type { UnsubscribeFunc } from "pocketbase";
@@ -55,6 +57,14 @@ export interface UseSessionOptions {
   realtime?: boolean;
 }
 
+/**
+ * Result of setVisibility mutation.
+ */
+export interface SetVisibilityResult {
+  isPublic: boolean;
+  publicSlug: string | null;
+}
+
 export interface UseSessionResult {
   /** The session data (null if not found or loading) */
   session: SessionWithMessages | null;
@@ -66,6 +76,15 @@ export interface UseSessionResult {
   refetch: () => Promise<void>;
   /** Get session as markdown */
   markdown: string | null;
+  // ========== Mutations ==========
+  /** Toggle session visibility (public/private) */
+  setVisibility: (isPublic: boolean) => Promise<SetVisibilityResult>;
+  /** Update session fields */
+  updateSession: (input: UpdateSessionInput) => Promise<void>;
+  /** Delete session with cascade (parts -> messages -> session) */
+  deleteSession: () => Promise<void>;
+  /** Whether a mutation is in progress */
+  isMutating: boolean;
 }
 
 // ============================================================================
@@ -223,6 +242,7 @@ export function useSession(options: UseSessionOptions): UseSessionResult {
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMutating, setIsMutating] = useState(false);
 
   // Unsubscribe functions for realtime
   const sessionUnsubscribeRef = useRef<UnsubscribeFunc | null>(null);
@@ -391,12 +411,157 @@ export function useSession(options: UseSessionOptions): UseSessionResult {
     };
   }, [realtime, sessionId, fetchSession]);
 
+  // ============================================================================
+  // Mutations
+  // ============================================================================
+
+  /**
+   * Toggle session visibility (public/private).
+   * Generates a new publicSlug if making public and none exists.
+   *
+   * @see convex/sessions.ts:setVisibility - Original implementation
+   */
+  const setVisibility = useCallback(
+    async (isPublic: boolean): Promise<SetVisibilityResult> => {
+      if (!sessionId) {
+        throw new Error("Cannot set visibility: no session loaded");
+      }
+
+      setIsMutating(true);
+      try {
+        // If making public and no slug exists, generate one
+        let newSlug = session?.publicSlug || null;
+        if (isPublic && !newSlug) {
+          newSlug = nanoid(10);
+        }
+
+        await pb.collection(Collections.SESSIONS).update(sessionId, {
+          isPublic,
+          publicSlug: newSlug,
+        });
+
+        // Refetch to update local state (realtime will also trigger this)
+        await fetchSession();
+
+        return { isPublic, publicSlug: newSlug };
+      } finally {
+        setIsMutating(false);
+      }
+    },
+    [sessionId, session?.publicSlug, fetchSession]
+  );
+
+  /**
+   * Update session fields.
+   *
+   * @param input - Fields to update
+   */
+  const updateSession = useCallback(
+    async (input: UpdateSessionInput): Promise<void> => {
+      if (!sessionId) {
+        throw new Error("Cannot update session: no session loaded");
+      }
+
+      setIsMutating(true);
+      try {
+        await pb.collection(Collections.SESSIONS).update(sessionId, input);
+        // Refetch to update local state
+        await fetchSession();
+      } finally {
+        setIsMutating(false);
+      }
+    },
+    [sessionId, fetchSession]
+  );
+
+  /**
+   * Delete session with cascade: parts -> messages -> session.
+   * Must delete in correct order due to foreign key relationships.
+   *
+   * @see convex/sessions.ts:remove - Original implementation
+   */
+  const deleteSession = useCallback(async (): Promise<void> => {
+    if (!sessionId) {
+      throw new Error("Cannot delete session: no session loaded");
+    }
+
+    setIsMutating(true);
+    try {
+      // 1. Get all messages for this session
+      const messagesResult = await pb
+        .collection(Collections.MESSAGES)
+        .getList<Message>(1, 500, {
+          filter: `session = "${sessionId}"`,
+        });
+      const messageIds = messagesResult.items.map((m) => m.id);
+
+      // 2. Delete all parts for these messages
+      if (messageIds.length > 0) {
+        const partsFilter = messageIds.map((id) => `message = "${id}"`).join(" || ");
+        const partsResult = await pb
+          .collection(Collections.PARTS)
+          .getList<Part>(1, 5000, { filter: partsFilter });
+
+        for (const part of partsResult.items) {
+          await pb.collection(Collections.PARTS).delete(part.id);
+        }
+      }
+
+      // 3. Delete all messages
+      for (const msg of messagesResult.items) {
+        await pb.collection(Collections.MESSAGES).delete(msg.id);
+      }
+
+      // 4. Delete embeddings if they exist
+      // Session embeddings
+      try {
+        const sessionEmbeddings = await pb
+          .collection(Collections.SESSION_EMBEDDINGS)
+          .getList(1, 100, { filter: `session = "${sessionId}"` });
+        for (const emb of sessionEmbeddings.items) {
+          await pb.collection(Collections.SESSION_EMBEDDINGS).delete(emb.id);
+        }
+      } catch {
+        // Collection may not exist yet - ignore
+      }
+
+      // Message embeddings
+      if (messageIds.length > 0) {
+        try {
+          const embFilter = messageIds.map((id) => `message = "${id}"`).join(" || ");
+          const messageEmbeddings = await pb
+            .collection(Collections.MESSAGE_EMBEDDINGS)
+            .getList(1, 5000, { filter: embFilter });
+          for (const emb of messageEmbeddings.items) {
+            await pb.collection(Collections.MESSAGE_EMBEDDINGS).delete(emb.id);
+          }
+        } catch {
+          // Collection may not exist yet - ignore
+        }
+      }
+
+      // 5. Delete the session
+      await pb.collection(Collections.SESSIONS).delete(sessionId);
+
+      // Clear local state
+      setSession(null);
+      setMarkdown(null);
+    } finally {
+      setIsMutating(false);
+    }
+  }, [sessionId]);
+
   return {
     session,
     isLoading,
     error,
     refetch: fetchSession,
     markdown,
+    // Mutations
+    setVisibility,
+    updateSession,
+    deleteSession,
+    isMutating,
   };
 }
 

@@ -19,6 +19,7 @@ export type {
   UseSessionResult,
   SessionMessage,
   SessionWithMessages,
+  SetVisibilityResult,
 } from "./useSession";
 
 export { useMessages } from "./useMessages";

@@ -41,7 +41,7 @@
 | [x] | **3.9**: Add error boundaries for PB failures | 30m | Installed react-error-boundary. Created src/components/ui/Error.tsx with ErrorFallback (full-page), ErrorAlert (inline), ErrorCard (card-style), ConnectionError (PB connection). Created src/components/ErrorBoundary.tsx with AppErrorBoundary (root), PageErrorBoundary (routes), SectionErrorBoundary (data sections). Updated main.tsx to wrap app with AppErrorBoundary. Updated PocketbaseProvider with showConnectionError option. Build passes. |
 | | | | |
 | | **Phase 4: Mutations (~3h)** | | |
-| [ ] | **4.1**: Session mutations (update, delete, visibility) | 45m | Can toggle visibility, delete session |
+| [x] | **4.1**: Session mutations (update, delete, visibility) | 45m | Added setVisibility (generates nanoid slug), updateSession, deleteSession (cascade delete: parts → messages → embeddings → session) to useSession hook. Exported SetVisibilityResult type. Build passes. |
 | [ ] | **4.2**: User mutations (API key gen/revoke, agents) | 45m | Generate key -> key appears in UI |
 | [ ] | **4.3**: Eval mutations (ready, tags, notes) | 30m | Can mark session eval-ready |
 | [ ] | **4.4**: Bulk operations (multi-delete, export) | 45m | Delete 10 sessions at once works |
@@ -90,12 +90,12 @@
 | Phase 1: Setup | 8 | 2h | 8 |
 | Phase 2: SDK & Auth | 7 | 3h | 7 |
 | Phase 3: Data Hooks | 9 | 6h | 9 |
-| Phase 4: Mutations | 4 | 3h | 0 |
+| Phase 4: Mutations | 4 | 3h | 1 |
 | Phase 5: Pages | 6 | 8h | 0 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **23** |
+| **Total** | **47** | **~32h** | **24** |
 
 ---
 
