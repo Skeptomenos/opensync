@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import { useAuth } from "../lib/auth";
+import { useUser } from "../hooks";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "../lib/utils";
 import { useTheme, getThemeClasses } from "../lib/theme";
@@ -31,8 +30,8 @@ import {
   Bot,
 } from "lucide-react";
 
-// Convex URL from environment
-const CONVEX_URL = import.meta.env.VITE_CONVEX_URL as string;
+// Pocketbase URL from environment
+const POCKETBASE_URL = import.meta.env.VITE_POCKETBASE_URL as string;
 
 // AI Coding Agents configuration
 type AgentStatus = "supported" | "community" | "planned" | "tbd";
@@ -106,14 +105,16 @@ export function SettingsPage() {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
-  const currentUser = useQuery(api.users.me);
-  const stats = useQuery(api.users.stats);
-
-  const generateApiKey = useMutation(api.users.generateApiKey);
-  const revokeApiKey = useMutation(api.users.revokeApiKey);
-  const deleteAllData = useMutation(api.users.deleteAllData);
-  const deleteAccount = useAction(api.users.deleteAccount);
-  const updateEnabledAgents = useMutation(api.users.updateEnabledAgents);
+  // Use Pocketbase hook for user data and mutations
+  const {
+    user: currentUser,
+    stats,
+    generateApiKey,
+    revokeApiKey,
+    deleteAllData,
+    deleteAccount,
+    updateEnabledAgents,
+  } = useUser();
 
   // Compute enabled agents with defaults for backward compatibility
   const enabledAgents = currentUser?.enabledAgents ?? DEFAULT_ENABLED_AGENTS;
@@ -122,9 +123,9 @@ export function SettingsPage() {
   const handleToggleAgent = async (agentId: string) => {
     const isCurrentlyEnabled = enabledAgents.includes(agentId);
     const newEnabledAgents = isCurrentlyEnabled
-      ? enabledAgents.filter((id) => id !== agentId)
+      ? enabledAgents.filter((id: string) => id !== agentId)
       : [...enabledAgents, agentId];
-    await updateEnabledAgents({ enabledAgents: newEnabledAgents });
+    await updateEnabledAgents(newEnabledAgents);
   };
 
   const handleGenerateKey = async () => {
@@ -152,8 +153,8 @@ export function SettingsPage() {
   };
 
   const handleCopyUrl = async () => {
-    if (CONVEX_URL) {
-      await navigator.clipboard.writeText(CONVEX_URL);
+    if (POCKETBASE_URL) {
+      await navigator.clipboard.writeText(POCKETBASE_URL);
       setCopiedUrl(true);
       setTimeout(() => setCopiedUrl(false), 2000);
     }
@@ -318,13 +319,13 @@ export function SettingsPage() {
                     </p>
                   </div>
 
-                  {/* Convex URL */}
+                  {/* Pocketbase URL */}
                   <div className="space-y-4">
                     <div>
-                      <label className={cn("text-xs mb-1.5 block", t.textSubtle)}>Convex URL</label>
+                      <label className={cn("text-xs mb-1.5 block", t.textSubtle)}>Pocketbase URL</label>
                       <div className="flex items-center gap-2">
                         <code className={cn("flex-1 text-sm font-mono px-3 py-2 rounded border overflow-x-auto", t.bgCode, t.border, t.textSecondary)}>
-                          {CONVEX_URL || "Not configured"}
+                          {POCKETBASE_URL || "Not configured"}
                         </code>
                         <button
                           onClick={handleCopyUrl}
@@ -339,7 +340,7 @@ export function SettingsPage() {
                     {/* API Key Status */}
                     <div>
                       <label className={cn("text-xs mb-1.5 block", t.textSubtle)}>API Key</label>
-                      {currentUser?.hasApiKey || newApiKey ? (
+                      {currentUser?.apiKey || newApiKey ? (
                         <div className="flex items-center gap-2">
                           <code className={cn("flex-1 text-sm font-mono px-3 py-2 rounded border", t.bgCode, t.border, t.textSecondary)}>
                             {newApiKey && showApiKey ? newApiKey : "osk_••••••••••••••••"}
@@ -487,7 +488,7 @@ export function SettingsPage() {
                   Use the same API key with opencode-sync-plugin, claude-code-sync, and droid-sync.
                 </p>
 
-                {currentUser?.hasApiKey || newApiKey ? (
+                {currentUser?.apiKey || newApiKey ? (
                   <div className="space-y-3">
                     {newApiKey && showApiKey && (
                       <div className={cn("p-3 rounded border", t.bgSecondary, t.borderLight)}>
@@ -620,8 +621,8 @@ export function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <span className={cn("text-sm", t.textSubtle)}>Member since</span>
                   <span className={cn("text-sm", t.textSecondary)}>
-                    {currentUser?.createdAt
-                      ? new Date(currentUser.createdAt).toLocaleDateString()
+                    {currentUser?.created
+                      ? new Date(currentUser.created).toLocaleDateString()
                       : "N/A"}
                   </span>
                 </div>

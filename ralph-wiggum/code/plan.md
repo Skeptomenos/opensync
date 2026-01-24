@@ -48,7 +48,7 @@
 | | | | |
 | | **Phase 5: Page Migration (~8h)** | | |
 | [x] | **5.1**: Migrate Dashboard.tsx (19 hooks) | 3h | All charts, stats, session list work. Replaced 19 Convex hooks: useMutation(getOrCreate) removed (handled by auth), useQuery(me) → useUser(), 6x useQuery(analytics.*) → useAnalytics(), useQuery(sessionsWithDetails) → useSessions(), useQuery(sessions.get) → useSession(), useMutation(sessions.remove) → useSession().deleteSession, useMutation(sessions.setVisibility) → useSession().setVisibility, useQuery(sessions.getMarkdown) → useSession().markdown, useQuery(sessions.exportAllDataCSV) → useBulkOperations().exportSessions(), useMutation(evals.setEvalReady) → useEvals().setEvalReady. All Id<"sessions"> replaced with string. Build passes. |
-| [ ] | **5.2**: Migrate Settings.tsx (8 hooks) | 1h | API key, danger zone, preferences work |
+| [x] | **5.2**: Migrate Settings.tsx (8 hooks) | 1h | Replaced all 8 Convex hooks with useUser() from hooks/. Changed: useQuery(me)+useQuery(stats) → useUser().user+stats, 5 mutations (generateApiKey, revokeApiKey, deleteAllData, deleteAccount, updateEnabledAgents) → useUser() destructured. Updated CONVEX_URL → POCKETBASE_URL, hasApiKey → apiKey, createdAt → created. Build passes. Done in v1.3.0-pb.21. |
 | [ ] | **5.3**: Migrate Context.tsx (5 hooks) | 45m | Search returns results, pagination works |
 | [ ] | **5.4**: Migrate Evals.tsx (5 hooks) | 45m | Export generates valid file |
 | [ ] | **5.5**: Migrate PublicSession.tsx (2 hooks) | 30m | Public URL loads session without auth |
@@ -91,11 +91,11 @@
 | Phase 2: SDK & Auth | 7 | 3h | 7 |
 | Phase 3: Data Hooks | 9 | 6h | 9 |
 | Phase 4: Mutations | 4 | 3h | 4 |
-| Phase 5: Pages | 6 | 8h | 1 |
+| Phase 5: Pages | 6 | 8h | 2 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **28** |
+| **Total** | **47** | **~32h** | **29** |
 
 ---
 
