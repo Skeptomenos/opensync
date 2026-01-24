@@ -1,8 +1,10 @@
 // Authelia-based authentication
 // Reads user info from headers passed by Traefik/Authelia
+// Syncs authenticated users to Pocketbase for data persistence
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { type User, toUser } from "./types";
+import { type User, type PocketbaseUser, toUser } from "./types";
+import { syncUser } from "./userSync";
 
 // Re-export User type for consumers that import from auth.tsx
 export type { User } from "./types";
@@ -40,12 +42,40 @@ export function AutheliaAuthProvider({ children }: { children: ReactNode }) {
         if (res.ok) {
           const data = await res.json();
           if (data.email) {
-            // Use toUser to derive firstName/lastName from name for UI compatibility
-            const user = toUser({
-              email: data.email,
-              name: data.name,
-              groups: data.groups,
-            });
+            // Sync user to Pocketbase - creates or updates user record
+            // This ensures the user exists in PB with a proper ID for data relations
+            let pbUser: PocketbaseUser | null = null;
+            try {
+              const syncResult = await syncUser({
+                email: data.email,
+                name: data.name,
+                groups: data.groups,
+              });
+              pbUser = syncResult.user;
+              if (syncResult.created) {
+                console.log("[auth] Created new Pocketbase user:", pbUser.email);
+              }
+            } catch (syncError) {
+              // Log but don't fail auth - user can still use app with limited functionality
+              console.error("[auth] Failed to sync user to Pocketbase:", syncError);
+            }
+
+            // Use toUser to create UI-compatible user object
+            // If we have a PB user, use that (includes id, apiKey, etc.)
+            // Otherwise fall back to auth context only
+            const user = pbUser
+              ? toUser(pbUser)
+              : toUser({
+                  email: data.email,
+                  name: data.name,
+                  groups: data.groups,
+                });
+
+            // Merge groups from Authelia headers (not stored in PB)
+            if (data.groups) {
+              user.groups = data.groups;
+            }
+
             setAuthState({
               user,
               isLoading: false,

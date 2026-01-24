@@ -25,7 +25,7 @@
 | [x] | **2.2**: Create `src/lib/pocketbase.ts` client setup | 30m | Created singleton client with autoCancellation(false), checkHealth() and isHealthy() helpers. Added /api/health to Vite proxy. Verified: client connects, health check returns {"code":200,"message":"API is healthy."}. |
 | [x] | **2.3**: Create `src/lib/types.ts` for all collections | 45m | Created comprehensive types for all 7 collections (users, sessions, messages, parts, apiLogs, sessionEmbeddings, messageEmbeddings). Added User type with firstName/lastName derived from name field for UI compatibility. Updated auth.tsx to use toUser() helper. Build passes. |
 | [x] | **2.4**: Create PocketbaseProvider context | 30m | Created PocketbaseProvider context in src/lib/pocketbase.tsx. Renamed from .ts to .tsx for JSX support. Added: PocketbaseProvider wraps app with connection health checking, usePocketbase() hook returning {client, isConnecting, isConnected, error, retryConnection}, usePocketbaseClient() convenience hook. Build passes. |
-| [ ] | **2.5**: Wire Authelia headers to PB user sync | 45m | Visit app -> user created in PB `users` collection |
+| [x] | **2.5**: Wire Authelia headers to PB user sync | 45m | Created src/lib/userSync.ts with syncUser() getOrCreate function. Uses deterministic password derived from email SHA-256 hash to enable user lookup via PB auth (since API rules restrict list/view). Updated auth.tsx to call syncUser() after /api/me. Tested: users created in PB with autheliaId=email. Moved pocketbase binary to bin/ to fix Vite esbuild error. |
 | [ ] | **2.6**: Update `main.tsx` with PocketbaseProvider | 15m | App loads without errors, provider wraps app |
 | [ ] | **2.7**: Benchmark PB realtime subscriptions | 30m | Sub latency <500ms for session updates |
 | | | | |
@@ -88,14 +88,14 @@
 | Phase | Tasks | Est. Time | Completed |
 |-------|-------|-----------|-----------|
 | Phase 1: Setup | 8 | 2h | 8 |
-| Phase 2: SDK & Auth | 7 | 3h | 4 |
+| Phase 2: SDK & Auth | 7 | 3h | 5 |
 | Phase 3: Data Hooks | 9 | 6h | 0 |
 | Phase 4: Mutations | 4 | 3h | 0 |
 | Phase 5: Pages | 6 | 8h | 0 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **12** |
+| **Total** | **47** | **~32h** | **13** |
 
 ---
 
