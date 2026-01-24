@@ -1,12 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { cn } from "../lib/utils";
 import { getSourceLabel, getSourceColorClass } from "../lib/source";
 import { useTheme, getThemeClasses } from "../lib/theme";
-import type { Id } from "../../convex/_generated/dataModel";
+import {
+  useSearchSessions,
+  useSearchMessages,
+  useSession,
+  type SessionSearchResult,
+  type MessageSearchResult,
+  type SessionWithMessages,
+  type SessionMessage,
+} from "../hooks";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -58,9 +64,9 @@ export function ContextPage() {
   const [cursor, setCursor] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
-  // Slide-over panel state
-  const [selectedSessionId, setSelectedSessionId] = useState<Id<"sessions"> | null>(null);
-  const [selectedMessageId, setSelectedMessageId] = useState<Id<"messages"> | null>(null);
+  // Slide-over panel state - changed from Id<"sessions"> to string
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
   // Debounce search query (300ms delay)
   useEffect(() => {
@@ -88,26 +94,26 @@ export function ContextPage() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  // Fetch search results using Full Text Search (no OpenAI required)
-  const sessionResults = useQuery(
-    api.search.searchSessionsPaginated,
-    searchMode === "sessions"
-      ? { query: debouncedQuery, limit: RESULTS_PER_PAGE, cursor }
-      : "skip"
-  );
+  // Fetch search results using Full Text Search (Pocketbase)
+  // Session search: returns recent sessions when query is empty
+  const sessionResults = useSearchSessions({
+    query: searchMode === "sessions" ? debouncedQuery : "",
+    limit: RESULTS_PER_PAGE,
+    cursor,
+  });
 
-  const messageResults = useQuery(
-    api.search.searchMessagesPaginated,
-    searchMode === "messages" && debouncedQuery.trim()
-      ? { query: debouncedQuery, limit: RESULTS_PER_PAGE, cursor }
-      : "skip"
-  );
+  // Message search: only search when in messages mode and query is not empty
+  const messageResults = useSearchMessages({
+    query: searchMode === "messages" ? debouncedQuery : "",
+    limit: RESULTS_PER_PAGE,
+    cursor,
+  });
 
   // Pagination handlers
   const handleNextPage = () => {
     const nextCursor = searchMode === "sessions" 
-      ? sessionResults?.nextCursor 
-      : messageResults?.nextCursor;
+      ? sessionResults.nextCursor 
+      : messageResults.nextCursor;
     if (nextCursor !== null && nextCursor !== undefined) {
       setCursor(nextCursor);
     }
@@ -120,31 +126,33 @@ export function ContextPage() {
   };
 
   const hasNextPage = searchMode === "sessions"
-    ? sessionResults?.nextCursor !== null
-    : messageResults?.nextCursor !== null;
+    ? sessionResults.nextCursor !== null
+    : messageResults.nextCursor !== null;
 
   const hasPrevPage = cursor > 0;
 
   const currentResults = searchMode === "sessions" 
-    ? sessionResults?.sessions || [] 
-    : messageResults?.messages || [];
+    ? sessionResults.sessions 
+    : messageResults.messages;
 
   const totalResults = searchMode === "sessions"
-    ? sessionResults?.total || 0
-    : messageResults?.total || 0;
+    ? sessionResults.total
+    : messageResults.total;
 
+  // Loading state comes from the hooks
   const isLoading = searchMode === "sessions"
-    ? sessionResults === undefined && debouncedQuery !== ""
-    : messageResults === undefined && debouncedQuery !== "";
+    ? sessionResults.isLoading && debouncedQuery !== ""
+    : messageResults.isLoading && debouncedQuery !== "";
 
-  // Fetch full session details for slide-over panel
-  const selectedSession = useQuery(
-    api.sessions.get,
-    selectedSessionId ? { sessionId: selectedSessionId } : "skip"
-  );
+  // Fetch full session details for slide-over panel using useSession hook
+  const {
+    session: selectedSessionData,
+    markdown,
+    isLoading: isSessionLoading,
+  } = useSession({ sessionId: selectedSessionId });
 
-  // Handle opening session in slide-over
-  const handleOpenSession = (sessionId: Id<"sessions">, messageId?: Id<"messages">) => {
+  // Handle opening session in slide-over - changed from Id<"..."> to string
+  const handleOpenSession = (sessionId: string, messageId?: string) => {
     setSelectedSessionId(sessionId);
     setSelectedMessageId(messageId || null);
   };
@@ -336,23 +344,23 @@ export function ContextPage() {
             <div className="space-y-3">
               {searchMode === "sessions" ? (
                 // Session results
-                (sessionResults?.sessions || []).map((session) => (
+                sessionResults.sessions.map((session) => (
                   <SessionResultCard
-                    key={session._id}
+                    key={session.id}
                     session={session}
                     theme={theme}
-                    onClick={() => handleOpenSession(session._id)}
+                    onClick={() => handleOpenSession(session.id)}
                   />
                 ))
               ) : (
                 // Message results
-                (messageResults?.messages || []).map((message) => (
+                messageResults.messages.map((message) => (
                   <MessageResultCard
-                    key={message._id}
+                    key={message.id}
                     message={message}
                     theme={theme}
                     searchQuery={debouncedQuery}
-                    onClick={() => handleOpenSession(message.sessionId, message._id)}
+                    onClick={() => handleOpenSession(message.sessionId, message.id)}
                   />
                 ))
               )}
@@ -436,7 +444,7 @@ export function ContextPage() {
       {/* Footer */}
       <footer className={cn("h-10 border-t flex items-center justify-center px-4", t.border, t.bgPrimary)}>
         <span className={cn("text-xs", t.textDim)}>
-          Powered by Convex Full-Text Search
+          Powered by Pocketbase Full-Text Search
         </span>
       </footer>
 
@@ -444,10 +452,12 @@ export function ContextPage() {
       <SessionSlideOver
         isOpen={!!selectedSessionId}
         onClose={handleClosePanel}
-        session={selectedSession?.session}
-        messages={selectedSession?.messages || []}
+        session={selectedSessionData}
+        messages={selectedSessionData?.messages || []}
         highlightMessageId={selectedMessageId}
         theme={theme}
+        markdown={markdown}
+        isLoading={isSessionLoading}
         onOpenInDashboard={() => {
           if (selectedSessionId) {
             navigate(`/?session=${selectedSessionId}`);
@@ -464,21 +474,7 @@ function SessionResultCard({
   theme,
   onClick,
 }: {
-  session: {
-    _id: Id<"sessions">;
-    title?: string;
-    projectPath?: string;
-    projectName?: string;
-    model?: string;
-    source?: string;
-    totalTokens: number;
-    cost: number;
-    isPublic: boolean;
-    messageCount: number;
-    summary?: string;
-    createdAt: number;
-    updatedAt: number;
-  };
+  session: SessionSearchResult;
   theme: "dark" | "tan";
   onClick: () => void;
 }) {
@@ -558,17 +554,7 @@ function MessageResultCard({
   searchQuery,
   onClick,
 }: {
-  message: {
-    _id: Id<"messages">;
-    sessionId: Id<"sessions">;
-    role: "user" | "assistant" | "system" | "unknown";
-    textContent?: string;
-    model?: string;
-    createdAt: number;
-    sessionTitle?: string;
-    projectPath?: string;
-    projectName?: string;
-  };
+  message: MessageSearchResult;
   theme: "dark" | "tan";
   searchQuery: string;
   onClick: () => void;
@@ -728,36 +714,18 @@ function SessionSlideOver({
   messages,
   highlightMessageId,
   theme,
+  markdown,
+  isLoading: isSessionLoading,
   onOpenInDashboard,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  session?: {
-    _id: Id<"sessions">;
-    title?: string;
-    projectPath?: string;
-    projectName?: string;
-    model?: string;
-    provider?: string;
-    source?: string;
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    cost: number;
-    durationMs?: number;
-    isPublic: boolean;
-    publicSlug?: string;
-    createdAt: number;
-  };
-  messages: Array<{
-    _id: Id<"messages">;
-    role: "user" | "assistant" | "system" | "unknown";
-    textContent?: string;
-    createdAt: number;
-    parts: Array<{ type: string; content: any }>;
-  }>;
-  highlightMessageId: Id<"messages"> | null;
+  session: SessionWithMessages | null;
+  messages: SessionMessage[];
+  highlightMessageId: string | null;
   theme: "dark" | "tan";
+  markdown: string | null;
+  isLoading?: boolean;
   onOpenInDashboard: () => void;
 }) {
   const t = getThemeClasses(theme);
@@ -773,12 +741,6 @@ function SessionSlideOver({
       }, 100);
     }
   }, [isOpen, highlightMessageId]);
-
-  // Get markdown for copy
-  const markdown = useQuery(
-    api.sessions.getMarkdown,
-    session?._id ? { sessionId: session._id } : "skip"
-  );
 
   const handleCopy = async () => {
     if (markdown) {
@@ -831,7 +793,7 @@ function SessionSlideOver({
         )}
       >
         {/* Loading state */}
-        {isOpen && !session && (
+        {isOpen && (isSessionLoading || !session) && (
           <div className="flex-1 flex items-center justify-center">
             <Loader2 className={cn("h-8 w-8 animate-spin", t.textSubtle)} />
           </div>
@@ -950,11 +912,11 @@ function SessionSlideOver({
               ) : (
                 messages.map((message) => (
                   <div
-                    key={message._id}
-                    ref={message._id === highlightMessageId ? highlightedMessageRef : undefined}
+                    key={message.id}
+                    ref={message.id === highlightMessageId ? highlightedMessageRef : undefined}
                     className={cn(
                       "transition-colors rounded-lg",
-                      message._id === highlightMessageId && "ring-2 ring-yellow-500/50"
+                      message.id === highlightMessageId && "ring-2 ring-yellow-500/50"
                     )}
                   >
                     <SlideOverMessageBlock message={message} theme={theme} />
@@ -975,13 +937,7 @@ function SlideOverMessageBlock({
   message,
   theme,
 }: {
-  message: {
-    _id: Id<"messages">;
-    role: "user" | "assistant" | "system" | "unknown";
-    textContent?: string;
-    createdAt: number;
-    parts: Array<{ type: string; content: any }>;
-  };
+  message: SessionMessage;
   theme: "dark" | "tan";
 }) {
   const t = getThemeClasses(theme);
