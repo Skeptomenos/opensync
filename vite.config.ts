@@ -38,5 +38,31 @@ export default defineConfig({
   },
   server: {
     allowedHosts: true, // Allow all hosts (required behind reverse proxy)
+    proxy: {
+      // Proxy Pocketbase API requests to avoid CORS during development.
+      // In production, Traefik handles this by routing both to the same origin.
+      // All Pocketbase endpoints start with /api/ or /_/ (admin).
+      "/api/collections": {
+        target: "http://localhost:8090",
+        changeOrigin: true,
+      },
+      "/api/admins": {
+        target: "http://localhost:8090",
+        changeOrigin: true,
+      },
+      "/api/realtime": {
+        target: "http://localhost:8090",
+        changeOrigin: true,
+        ws: true, // Enable WebSocket proxying for realtime subscriptions
+      },
+      "/api/files": {
+        target: "http://localhost:8090",
+        changeOrigin: true,
+      },
+      "/_": {
+        target: "http://localhost:8090",
+        changeOrigin: true,
+      },
+    },
   },
 });
