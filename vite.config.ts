@@ -10,6 +10,7 @@ import {
   handleApiSessionsGet,
   handleApiSearch,
   handleApiStats,
+  handleApiExport,
 } from "./server/sync";
 
 export default defineConfig({
@@ -73,6 +74,12 @@ export default defineConfig({
 
         server.middlewares.use("/api/stats", (req, res) => {
           handleApiStats(req, res);
+        });
+
+        // Export API endpoint for downloading sessions in various formats
+        // Supports: json, csv, markdown
+        server.middlewares.use("/api/export", (req, res) => {
+          handleApiExport(req, res);
         });
       },
     },

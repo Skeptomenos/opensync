@@ -983,3 +983,522 @@ export async function handleApiStats(
     sendJson(res, { error: String(e) }, 500);
   }
 }
+
+// ============================================================================
+// Export API Types
+// ============================================================================
+
+type ExportFormat = "json" | "csv" | "markdown";
+
+interface SessionExport {
+  id: string;
+  externalId: string;
+  title?: string;
+  projectPath?: string;
+  projectName?: string;
+  model?: string;
+  provider?: string;
+  source?: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cost: number;
+  durationMs?: number;
+  messageCount: number;
+  created: string;
+  updated: string;
+  messages?: MessageExport[];
+}
+
+interface MessageExport {
+  id: string;
+  externalId: string;
+  role: string;
+  textContent?: string;
+  model?: string;
+  promptTokens?: number;
+  completionTokens?: number;
+  durationMs?: number;
+  created: string;
+  parts?: PartExport[];
+}
+
+interface PartExport {
+  type: string;
+  content: unknown;
+  order: number;
+}
+
+// ============================================================================
+// Export Helper Functions
+// ============================================================================
+
+/**
+ * Infer provider from session data.
+ * Mirrors the inferProvider logic from useSessions.ts.
+ */
+function inferProvider(session: Record<string, unknown>): string {
+  const provider = session.provider as string | undefined;
+  if (provider) return provider;
+
+  const model = (session.model as string) || "";
+  const source = (session.source as string) || "";
+
+  // Infer from source
+  if (source === "claude-code") return "anthropic";
+  if (source === "opencode") {
+    // OpenCode can use multiple providers, try to infer from model
+    if (model.includes("claude")) return "anthropic";
+    if (model.includes("gpt") || model.includes("o1") || model.includes("o3")) return "openai";
+    if (model.includes("gemini")) return "google";
+    return "unknown";
+  }
+
+  // Fallback: infer from model name
+  if (model.includes("claude")) return "anthropic";
+  if (model.includes("gpt") || model.includes("o1") || model.includes("o3")) return "openai";
+  if (model.includes("gemini")) return "google";
+
+  return "unknown";
+}
+
+/**
+ * Escape a value for CSV output.
+ * Handles quotes, commas, and newlines.
+ */
+function escapeCSV(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const str = String(value);
+  // If contains comma, quote, or newline, wrap in quotes and escape existing quotes
+  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+/**
+ * Helper to extract text from part content.
+ */
+function getTextFromContent(content: unknown): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  if (typeof content === "object" && content !== null) {
+    const obj = content as Record<string, unknown>;
+    if (typeof obj.text === "string") return obj.text;
+    if (typeof obj.content === "string") return obj.content;
+  }
+  return "";
+}
+
+/**
+ * Helper to extract tool call details.
+ */
+function getToolCallDetails(content: unknown): { name: string; args: unknown } {
+  if (!content || typeof content !== "object") {
+    return { name: "Unknown Tool", args: {} };
+  }
+  const obj = content as Record<string, unknown>;
+  return {
+    name: (obj.name as string) || (obj.toolName as string) || "Unknown Tool",
+    args: obj.args || obj.arguments || obj.input || {},
+  };
+}
+
+/**
+ * Helper to extract tool result text.
+ */
+function getToolResultText(content: unknown): string {
+  if (!content) return "";
+  if (typeof content !== "object") return String(content);
+  const obj = content as Record<string, unknown>;
+  const result = obj.result ?? obj.output ?? content;
+  if (typeof result === "string") return result;
+  return JSON.stringify(result, null, 2);
+}
+
+/**
+ * Format session as markdown document.
+ */
+function formatSessionMarkdown(
+  session: SessionExport,
+  messages: MessageExport[],
+  partsByMessage: Map<string, PartExport[]>
+): string {
+  const lines: string[] = [];
+
+  // Header
+  lines.push(`# ${session.title || "Untitled Session"}`);
+  lines.push("");
+
+  // Metadata
+  lines.push("## Session Info");
+  lines.push("");
+  lines.push(`- **ID:** ${session.externalId}`);
+  if (session.projectPath) {
+    lines.push(`- **Project:** ${session.projectPath}`);
+  }
+  if (session.model) {
+    lines.push(`- **Model:** ${session.model}`);
+  }
+  lines.push(`- **Provider:** ${session.provider || "unknown"}`);
+  lines.push(`- **Tokens:** ${session.totalTokens.toLocaleString()}`);
+  lines.push(`- **Cost:** $${session.cost.toFixed(4)}`);
+  if (session.durationMs) {
+    const minutes = Math.floor(session.durationMs / 60000);
+    const seconds = Math.floor((session.durationMs % 60000) / 1000);
+    const duration = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+    lines.push(`- **Duration:** ${duration}`);
+  }
+  lines.push(`- **Created:** ${session.created}`);
+  lines.push(`- **Source:** ${session.source || "opencode"}`);
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+
+  // Messages
+  lines.push("## Conversation");
+  lines.push("");
+
+  for (const message of messages) {
+    const roleLabel =
+      message.role === "user"
+        ? "### User"
+        : message.role === "assistant"
+          ? "### Assistant"
+          : message.role === "system"
+            ? "### System"
+            : "### Unknown";
+
+    lines.push(roleLabel);
+    lines.push("");
+
+    // Get parts for this message
+    const msgParts = partsByMessage.get(message.id) || [];
+    msgParts.sort((a, b) => a.order - b.order);
+
+    // Render parts or fallback to textContent
+    const hasPartsContent = msgParts.some((part) => {
+      if (part.type === "text") {
+        const text = getTextFromContent(part.content);
+        return text && text.trim().length > 0;
+      }
+      return part.type === "tool_call" || part.type === "tool_result";
+    });
+
+    if (hasPartsContent) {
+      for (const part of msgParts) {
+        if (part.type === "text") {
+          const text = getTextFromContent(part.content);
+          if (text) {
+            lines.push(text);
+            lines.push("");
+          }
+        } else if (part.type === "tool_call") {
+          const details = getToolCallDetails(part.content);
+          lines.push(`> **Tool Call:** ${details.name}`);
+          lines.push("```json");
+          lines.push(JSON.stringify(details.args, null, 2));
+          lines.push("```");
+          lines.push("");
+        } else if (part.type === "tool_result") {
+          const result = getToolResultText(part.content);
+          lines.push("> **Tool Result:**");
+          lines.push("```");
+          lines.push(result);
+          lines.push("```");
+          lines.push("");
+        }
+      }
+    } else if (message.textContent) {
+      lines.push(message.textContent);
+      lines.push("");
+    }
+
+    lines.push("---");
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Build export data for a session.
+ */
+async function buildSessionExport(
+  pb: PocketBase,
+  sessionRecord: Record<string, unknown>,
+  includeMessages: boolean
+): Promise<SessionExport> {
+  const sessionExport: SessionExport = {
+    id: sessionRecord.id as string,
+    externalId: sessionRecord.externalId as string,
+    title: (sessionRecord.title as string) || undefined,
+    projectPath: (sessionRecord.projectPath as string) || undefined,
+    projectName: (sessionRecord.projectName as string) || undefined,
+    model: (sessionRecord.model as string) || undefined,
+    provider: inferProvider(sessionRecord),
+    source: (sessionRecord.source as string) || "opencode",
+    promptTokens: (sessionRecord.promptTokens as number) || 0,
+    completionTokens: (sessionRecord.completionTokens as number) || 0,
+    totalTokens: (sessionRecord.totalTokens as number) || 0,
+    cost: (sessionRecord.cost as number) || 0,
+    durationMs: (sessionRecord.durationMs as number) || undefined,
+    messageCount: (sessionRecord.messageCount as number) || 0,
+    created: sessionRecord.created as string,
+    updated: sessionRecord.updated as string,
+  };
+
+  if (includeMessages) {
+    // Fetch messages
+    const messages = await pb.collection("messages").getFullList({
+      filter: `session = "${sessionRecord.id}"`,
+      sort: "created",
+    });
+
+    // Fetch parts for all messages
+    const messageIds = messages.map((m) => m.id);
+    let allParts: PartRecord[] = [];
+    if (messageIds.length > 0) {
+      const partsFilter = messageIds.map((id) => `message = "${id}"`).join(" || ");
+      allParts = await pb.collection("parts").getFullList({
+        filter: partsFilter,
+        sort: "order",
+      }) as PartRecord[];
+    }
+
+    // Group parts by message
+    const partsByMessage = new Map<string, PartExport[]>();
+    for (const part of allParts) {
+      const msgId = part.message;
+      if (!partsByMessage.has(msgId)) {
+        partsByMessage.set(msgId, []);
+      }
+      partsByMessage.get(msgId)!.push({
+        type: part.type,
+        content: part.content,
+        order: part.order,
+      });
+    }
+
+    // Build message exports
+    sessionExport.messages = messages.map((m) => {
+      const msgRecord = m as Record<string, unknown>;
+      return {
+        id: m.id,
+        externalId: msgRecord.externalId as string,
+        role: msgRecord.role as string,
+        textContent: (msgRecord.textContent as string) || undefined,
+        model: (msgRecord.model as string) || undefined,
+        promptTokens: (msgRecord.promptTokens as number) || undefined,
+        completionTokens: (msgRecord.completionTokens as number) || undefined,
+        durationMs: (msgRecord.durationMs as number) || undefined,
+        created: msgRecord.created as string,
+        parts: partsByMessage.get(m.id),
+      };
+    });
+  }
+
+  return sessionExport;
+}
+
+/**
+ * Send file download response.
+ */
+function sendFile(
+  res: ServerResponse,
+  data: string,
+  filename: string,
+  mimeType: string
+): void {
+  res.statusCode = 200;
+  res.setHeader("Content-Type", mimeType);
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  res.end(data);
+}
+
+// ============================================================================
+// Export API Endpoints
+// ============================================================================
+
+/**
+ * GET /api/export - Export session(s) in specified format.
+ *
+ * Query params:
+ *   - id: string (required) - Single session ID or comma-separated IDs
+ *   - format: "json" | "csv" | "markdown" (default: "json")
+ *
+ * Response: File download with appropriate Content-Type and Content-Disposition headers
+ *
+ * Examples:
+ *   GET /api/export?id=abc123&format=json       -> Single session as JSON
+ *   GET /api/export?id=abc123&format=markdown   -> Single session as Markdown
+ *   GET /api/export?id=abc,def,ghi&format=csv   -> Multiple sessions as CSV
+ */
+export async function handleApiExport(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (req.method === "OPTIONS") {
+    return sendCorsPrelight(res);
+  }
+
+  const authHeader = req.headers.authorization;
+  const auth = await validateApiKey(authHeader);
+
+  if ("error" in auth) {
+    return sendJson(res, { error: auth.error }, auth.status);
+  }
+
+  try {
+    const query = parseQuery(req.url || "");
+    const sessionIds = (query.id || "").split(",").filter((id) => id.trim());
+    const format = (query.format || "json") as ExportFormat;
+
+    if (sessionIds.length === 0) {
+      return sendJson(res, { error: "Missing 'id' query parameter" }, 400);
+    }
+
+    if (!["json", "csv", "markdown"].includes(format)) {
+      return sendJson(res, {
+        error: "Invalid format. Supported: json, csv, markdown",
+      }, 400);
+    }
+
+    // Fetch and validate sessions (user must own them)
+    const sessionExports: SessionExport[] = [];
+    const messagesBySession = new Map<string, MessageExport[]>();
+    const partsBySession = new Map<string, Map<string, PartExport[]>>();
+
+    for (const sessionId of sessionIds) {
+      // Fetch session
+      let sessionRecord: Record<string, unknown>;
+      try {
+        sessionRecord = await auth.pb.collection("sessions").getOne(sessionId) as Record<string, unknown>;
+      } catch {
+        // Skip sessions that don't exist
+        continue;
+      }
+
+      // Verify user owns the session
+      if (sessionRecord.user !== auth.user.id) {
+        // Skip sessions user doesn't own
+        continue;
+      }
+
+      // Build export data (include messages for json/markdown, exclude for csv)
+      const includeMessages = format !== "csv";
+      const sessionExport = await buildSessionExport(auth.pb, sessionRecord, includeMessages);
+      sessionExports.push(sessionExport);
+
+      // Cache messages and parts for markdown format
+      if (format === "markdown" && sessionExport.messages) {
+        messagesBySession.set(sessionExport.id, sessionExport.messages);
+        const partsMap = new Map<string, PartExport[]>();
+        for (const msg of sessionExport.messages) {
+          if (msg.parts) {
+            partsMap.set(msg.id, msg.parts);
+          }
+        }
+        partsBySession.set(sessionExport.id, partsMap);
+      }
+    }
+
+    if (sessionExports.length === 0) {
+      return sendJson(res, { error: "No valid sessions found for export" }, 404);
+    }
+
+    const timestamp = new Date().toISOString().split("T")[0];
+
+    // ========================================================================
+    // JSON Format
+    // ========================================================================
+    if (format === "json") {
+      const data = sessionExports.length === 1 ? sessionExports[0] : sessionExports;
+      const filename = sessionExports.length === 1
+        ? `session-${sessionExports[0].externalId || sessionExports[0].id}-${timestamp}.json`
+        : `opensync-export-${timestamp}.json`;
+
+      return sendFile(res, JSON.stringify(data, null, 2), filename, "application/json");
+    }
+
+    // ========================================================================
+    // CSV Format
+    // ========================================================================
+    if (format === "csv") {
+      const headers = [
+        "id",
+        "externalId",
+        "title",
+        "projectPath",
+        "projectName",
+        "model",
+        "provider",
+        "source",
+        "promptTokens",
+        "completionTokens",
+        "totalTokens",
+        "cost",
+        "durationMs",
+        "messageCount",
+        "created",
+        "updated",
+      ];
+
+      const rows = sessionExports.map((session) => [
+        session.id,
+        session.externalId,
+        session.title || "",
+        session.projectPath || "",
+        session.projectName || "",
+        session.model || "",
+        session.provider || "",
+        session.source || "opencode",
+        session.promptTokens,
+        session.completionTokens,
+        session.totalTokens,
+        session.cost,
+        session.durationMs || 0,
+        session.messageCount || 0,
+        session.created,
+        session.updated,
+      ]);
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row) => row.map(escapeCSV).join(",")),
+      ].join("\n");
+
+      const filename = sessionExports.length === 1
+        ? `session-${sessionExports[0].externalId || sessionExports[0].id}-${timestamp}.csv`
+        : `opensync-export-${timestamp}.csv`;
+
+      return sendFile(res, csvContent, filename, "text/csv");
+    }
+
+    // ========================================================================
+    // Markdown Format
+    // ========================================================================
+    const markdownSections = sessionExports.map((session) => {
+      const messages = messagesBySession.get(session.id) || [];
+      const partsMap = partsBySession.get(session.id) || new Map();
+      return formatSessionMarkdown(session, messages, partsMap);
+    });
+
+    // Combine with page breaks
+    const markdownContent = markdownSections.join(
+      "\n\n<div style=\"page-break-after: always;\"></div>\n\n"
+    );
+
+    const filename = sessionExports.length === 1
+      ? `session-${sessionExports[0].externalId || sessionExports[0].id}-${timestamp}.md`
+      : `opensync-export-${timestamp}.md`;
+
+    return sendFile(res, markdownContent, filename, "text/markdown");
+  } catch (e) {
+    console.error("Export error:", e);
+    sendJson(res, { error: String(e) }, 500);
+  }
+}
