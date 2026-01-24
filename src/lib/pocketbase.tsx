@@ -10,6 +10,7 @@
 
 import PocketBase from "pocketbase";
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { ConnectionError } from "../components/ui/Error";
 
 // Get Pocketbase URL from environment.
 // In development, Vite proxies /api/* to Pocketbase, so we use relative URLs.
@@ -69,6 +70,15 @@ interface PocketbaseContextType {
 
 const PocketbaseContext = createContext<PocketbaseContextType | null>(null);
 
+interface PocketbaseProviderProps {
+  children: ReactNode;
+  /**
+   * If true, shows a full-page connection error UI when Pocketbase is unreachable.
+   * If false (default), just provides the error state to children via context.
+   */
+  showConnectionError?: boolean;
+}
+
 /**
  * PocketbaseProvider - Wraps the app and provides Pocketbase client via context.
  *
@@ -81,7 +91,10 @@ const PocketbaseContext = createContext<PocketbaseContextType | null>(null);
  * - Consistent pattern with other providers (Theme, Auth)
  * - Easier testing via provider mocking
  */
-export function PocketbaseProvider({ children }: { children: ReactNode }) {
+export function PocketbaseProvider({
+  children,
+  showConnectionError = false,
+}: PocketbaseProviderProps) {
   const [isConnecting, setIsConnecting] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +127,11 @@ export function PocketbaseProvider({ children }: { children: ReactNode }) {
     error,
     retryConnection: checkConnection,
   };
+
+  // Show connection error UI if enabled and connection failed
+  if (showConnectionError && !isConnecting && !isConnected && error) {
+    return <ConnectionError onRetry={checkConnection} />;
+  }
 
   return (
     <PocketbaseContext.Provider value={contextValue}>

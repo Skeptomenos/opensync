@@ -38,7 +38,7 @@
 | [x] | **3.6**: Create `useAnalytics` hook (single fetch, multi-compute) | 60m | Created src/hooks/useAnalytics.ts. Single fetch of all sessions, client-side computation of summaryStats, dailyStats, modelStats, projectStats, providerStats, sourceStats. Uses inferProvider from useSessions. Exported via hooks/index.ts. Build passes. |
 | [x] | **3.7**: Create `useEvals` hook (list, tags) | 30m | Created src/hooks/useEvals.ts. Provides: evalSessions (filtered list), stats (total, bySource, totalTestCases), allTags (unique tags for filter). Includes mutations: setEvalReady, updateEvalNotes, updateEvalTags. Includes generateExport function supporting deepeval/openai/filesystem formats (client-side implementation). Exported via hooks/index.ts. Build passes. |
 | [x] | **3.8**: Add loading states to all hooks | 30m | All hooks have isLoading state. Created src/components/ui/Skeleton.tsx with theme-aware skeleton components: Skeleton (base), SkeletonText, SessionSkeleton, StatsSkeleton, TableSkeleton, ChartSkeleton, MessageSkeleton, PageSkeleton. Export index at src/components/ui/index.ts. Build passes. |
-| [ ] | **3.9**: Add error boundaries for PB failures | 30m | Graceful error UI on API failure |
+| [x] | **3.9**: Add error boundaries for PB failures | 30m | Installed react-error-boundary. Created src/components/ui/Error.tsx with ErrorFallback (full-page), ErrorAlert (inline), ErrorCard (card-style), ConnectionError (PB connection). Created src/components/ErrorBoundary.tsx with AppErrorBoundary (root), PageErrorBoundary (routes), SectionErrorBoundary (data sections). Updated main.tsx to wrap app with AppErrorBoundary. Updated PocketbaseProvider with showConnectionError option. Build passes. |
 | | | | |
 | | **Phase 4: Mutations (~3h)** | | |
 | [ ] | **4.1**: Session mutations (update, delete, visibility) | 45m | Can toggle visibility, delete session |
@@ -89,13 +89,13 @@
 |-------|-------|-----------|-----------|
 | Phase 1: Setup | 8 | 2h | 8 |
 | Phase 2: SDK & Auth | 7 | 3h | 7 |
-| Phase 3: Data Hooks | 9 | 6h | 8 |
+| Phase 3: Data Hooks | 9 | 6h | 9 |
 | Phase 4: Mutations | 4 | 3h | 0 |
 | Phase 5: Pages | 6 | 8h | 0 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **22** |
+| **Total** | **47** | **~32h** | **23** |
 
 ---
 

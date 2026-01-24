@@ -24,3 +24,15 @@ export {
   type MessageSkeletonProps,
   type PageSkeletonProps,
 } from "./Skeleton";
+
+// Error display components
+export {
+  ErrorFallback,
+  ErrorAlert,
+  ErrorCard,
+  ConnectionError,
+  type ErrorFallbackProps,
+  type ErrorAlertProps,
+  type ErrorCardProps,
+  type ConnectionErrorProps,
+} from "./Error";
