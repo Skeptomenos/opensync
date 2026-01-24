@@ -60,3 +60,14 @@ export type {
   UseAnalyticsOptions,
   UseAnalyticsResult,
 } from "./useAnalytics";
+
+export { useEvals } from "./useEvals";
+export type {
+  EvalSession,
+  EvalStats,
+  ExportFormat,
+  ExportOptions,
+  ExportResult,
+  UseEvalsOptions,
+  UseEvalsResult,
+} from "./useEvals";

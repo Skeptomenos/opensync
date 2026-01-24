@@ -36,7 +36,7 @@
 | [x] | **3.4**: Create `useUser` hook (current user, stats) | 30m | Created src/hooks/useUser.ts. Provides: user record, hasApiKey, enabledAgents, createdAt, stats (sessionCount, messageCount, totalTokens, totalCost). Includes mutations: generateApiKey, revokeApiKey, updateEnabledAgents, deleteAllData, deleteAccount. Supports realtime updates. Exported via hooks/index.ts. Build passes. |
 | [x] | **3.5**: Create `useSearch` hook (full-text) | 45m | Created src/hooks/useSearch.ts with useSearchSessions and useSearchMessages hooks. Session search uses searchableText field with ~ operator. Message search uses textContent field. Features: offset-based pagination (cursor), session info attached to message results, realtime subscriptions. Empty query on sessions returns recent sessions, empty query on messages returns empty array (matches Convex behavior). Exported via hooks/index.ts. Build passes. |
 | [x] | **3.6**: Create `useAnalytics` hook (single fetch, multi-compute) | 60m | Created src/hooks/useAnalytics.ts. Single fetch of all sessions, client-side computation of summaryStats, dailyStats, modelStats, projectStats, providerStats, sourceStats. Uses inferProvider from useSessions. Exported via hooks/index.ts. Build passes. |
-| [ ] | **3.7**: Create `useEvals` hook (list, tags) | 30m | Evals page shows sessions |
+| [x] | **3.7**: Create `useEvals` hook (list, tags) | 30m | Created src/hooks/useEvals.ts. Provides: evalSessions (filtered list), stats (total, bySource, totalTestCases), allTags (unique tags for filter). Includes mutations: setEvalReady, updateEvalNotes, updateEvalTags. Includes generateExport function supporting deepeval/openai/filesystem formats (client-side implementation). Exported via hooks/index.ts. Build passes. |
 | [ ] | **3.8**: Add loading states to all hooks | 30m | Skeleton loaders display during fetch |
 | [ ] | **3.9**: Add error boundaries for PB failures | 30m | Graceful error UI on API failure |
 | | | | |
@@ -89,13 +89,13 @@
 |-------|-------|-----------|-----------|
 | Phase 1: Setup | 8 | 2h | 8 |
 | Phase 2: SDK & Auth | 7 | 3h | 7 |
-| Phase 3: Data Hooks | 9 | 6h | 6 |
+| Phase 3: Data Hooks | 9 | 6h | 7 |
 | Phase 4: Mutations | 4 | 3h | 0 |
 | Phase 5: Pages | 6 | 8h | 0 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **20** |
+| **Total** | **47** | **~32h** | **21** |
 
 ---
 
