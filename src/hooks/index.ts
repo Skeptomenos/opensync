@@ -82,3 +82,12 @@ export type {
   UseBulkOperationsOptions,
   UseBulkOperationsResult,
 } from "./useBulkOperations";
+
+export { usePublicSession } from "./usePublicSession";
+export type {
+  PublicMessage,
+  PublicSession,
+  PublicSessionData,
+  UsePublicSessionOptions,
+  UsePublicSessionResult,
+} from "./usePublicSession";

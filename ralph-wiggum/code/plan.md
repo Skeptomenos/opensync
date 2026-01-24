@@ -51,7 +51,7 @@
 | [x] | **5.2**: Migrate Settings.tsx (8 hooks) | 1h | Replaced all 8 Convex hooks with useUser() from hooks/. Changed: useQuery(me)+useQuery(stats) → useUser().user+stats, 5 mutations (generateApiKey, revokeApiKey, deleteAllData, deleteAccount, updateEnabledAgents) → useUser() destructured. Updated CONVEX_URL → POCKETBASE_URL, hasApiKey → apiKey, createdAt → created. Build passes. Done in v1.3.0-pb.21. |
 | [x] | **5.3**: Migrate Context.tsx (5 hooks) | 45m | Replaced 5 Convex hooks: useQuery(searchSessionsPaginated) → useSearchSessions, useQuery(searchMessagesPaginated) → useSearchMessages, useQuery(sessions.get) → useSession, useQuery(sessions.getMarkdown) → useSession().markdown (now passed as prop to SessionSlideOver). Updated all Id<"sessions">/Id<"messages"> to string. Updated SessionResultCard, MessageResultCard, SessionSlideOver, SlideOverMessageBlock types. Footer changed to "Pocketbase Full-Text Search". Build passes. Done in v1.3.0-pb.22. |
 | [x] | **5.4**: Migrate Evals.tsx (5 hooks) | 45m | Replaced 4 Convex hooks: useQuery(me) → useUser(), useQuery(listEvalSessions) + useQuery(getEvalTags) + useAction(generateEvalExport) → useEvals(). Updated Id<"sessions"> to string, session._id to session.id. Added loading state. Build passes. Done in v1.3.0-pb.23. |
-| [ ] | **5.5**: Migrate PublicSession.tsx (2 hooks) | 30m | Public URL loads session without auth |
+| [x] | **5.5**: Migrate PublicSession.tsx (1 hook) | 30m | Replaced useQuery(api.sessions.getPublic) with usePublicSession hook. Created src/hooks/usePublicSession.ts with: fetch by publicSlug, isPublic=true filter, messages + parts expansion. Build passes. Done in v1.3.0-pb.24. |
 | [ ] | **5.6**: Migrate SessionViewer.tsx (4 hooks) | 1h | Full session detail, actions work |
 | | | | |
 | | **Phase 6: Sync API (~4h)** | | |
@@ -91,11 +91,11 @@
 | Phase 2: SDK & Auth | 7 | 3h | 7 |
 | Phase 3: Data Hooks | 9 | 6h | 9 |
 | Phase 4: Mutations | 4 | 3h | 4 |
-| Phase 5: Pages | 6 | 8h | 4 |
+| Phase 5: Pages | 6 | 8h | 5 |
 | Phase 6: API | 5 | 4h | 0 |
 | Phase 7: Cleanup | 5 | 3h | 0 |
 | Deferred | 3 | 3h | 0 |
-| **Total** | **47** | **~32h** | **31** |
+| **Total** | **47** | **~32h** | **32** |
 
 ---
 

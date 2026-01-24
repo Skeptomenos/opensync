@@ -1,6 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { usePublicSession } from "../hooks";
 import { ArrowLeft, Loader2, User, Bot, Wrench, Sun, Moon } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useTheme, getThemeClasses } from "../lib/theme";
@@ -38,7 +37,7 @@ export function PublicSessionPage() {
   const { slug } = useParams<{ slug: string }>();
   const { theme, toggleTheme } = useTheme();
   const t = getThemeClasses(theme);
-  const data = useQuery(api.sessions.getPublic, { slug: slug || "" });
+  const { data } = usePublicSession({ slug });
 
   if (data === undefined) {
     return (
