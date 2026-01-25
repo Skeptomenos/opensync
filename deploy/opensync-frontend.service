@@ -1,0 +1,27 @@
+[Unit]
+Description=OpenSync Frontend (Vite Dev Server)
+Documentation=https://vitejs.dev/
+After=network.target opensync-pb.service
+Requires=opensync-pb.service
+
+[Service]
+Type=simple
+User=opensync
+Group=opensync
+WorkingDirectory=/opt/opensync
+ExecStart=/usr/bin/npm run dev:host
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/opensync/frontend.log
+StandardError=append:/var/log/opensync/frontend.log
+
+# Node.js environment
+Environment=NODE_ENV=production
+Environment=VITE_POCKETBASE_URL=http://127.0.0.1:8090
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

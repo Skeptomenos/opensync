@@ -1,77 +1,102 @@
-# OpenSync Homelab Setup
+# OpenSync Homelab Setup (Pocketbase Edition)
 
-This document covers running OpenSync on a homelab with Authelia authentication, Cloudflare Tunnel, and Traefik reverse proxy.
+Self-hosted deployment for OpenSync with Pocketbase backend, Authelia authentication, and Traefik reverse proxy.
 
 ## Architecture
 
 ```
-Browser → Cloudflare Tunnel → Traefik → Authelia → Vite Dev Server → Convex Cloud
-                                ↓
-                         authelia-file middleware
-                         (redirects to auth if not logged in)
+Browser -> Cloudflare Tunnel -> Traefik -> Authelia -> Vite:5173 -> Pocketbase:8090
+                                  |
+                          authelia-file middleware
+                          (redirects to auth if not logged in)
 ```
 
 ## Prerequisites
 
-- Node.js 22+ installed
+- Node.js 18+
+- Pocketbase binary (Linux amd64 or Darwin arm64)
 - Cloudflare Tunnel routing your domain to Traefik
 - Traefik reverse proxy with cert resolver
-- Authelia running with `authelia-file` middleware configured
-
-## Quick Start
-
-```bash
-# 1. Clone and install
-cd ~
-git clone https://github.com/Skeptomenos/opensync.git
-cd opensync
-npm install
-
-# 2. Set your email in Convex
-npx convex env set DEFAULT_USER_EMAIL your@email.com
-
-# 3. Start Convex (creates .env.local on first run)
-npx convex dev
-
-# 4. Start Vite dev server
-npm run dev -- --host
-```
-
-Then visit your OpenSync URL - Authelia will prompt for login.
+- Authelia running with `authelia-file` middleware
 
 ---
 
-## Detailed Setup
-
-### 1. Clone and Install
+## Quick Start (Development)
 
 ```bash
-cd ~
-git clone https://github.com/Skeptomenos/opensync.git
-cd opensync
+cd ~/opensync-pocketbase
+
+# Terminal 1: Start Pocketbase
+npm run pocketbase
+
+# Terminal 2: Start Vite dev server
 npm install
+npm run dev:host
 ```
 
-### 2. Convex Backend Setup
+Visit `https://opensync.yourdomain.com` - Authelia prompts for login.
+
+---
+
+## Production Deployment
+
+### Option 1: Systemd Services (Recommended)
 
 ```bash
-# Set your user email
-npx convex env set DEFAULT_USER_EMAIL your@email.com
+cd ~/opensync-pocketbase
 
-# Start dev server
-npx convex dev
+sudo ./deploy/install.sh
 ```
 
-Follow prompts to create a new Convex project. This creates `.env.local` with:
-- `CONVEX_DEPLOYMENT` - your deployment name
-- `VITE_CONVEX_URL` - your Convex cloud URL
+This creates and enables:
+- `opensync-pb.service` - Pocketbase on port 8090
+- `opensync-frontend.service` - Vite on port 5173
 
-### 3. Traefik Configuration
+#### Verify Deployment
 
-Create a Traefik dynamic config file (e.g., `opensync.yml`):
+```bash
+systemctl status opensync-pb
+systemctl status opensync-frontend
+```
+
+#### Manage Services
+
+```bash
+sudo systemctl start opensync-pb
+sudo systemctl stop opensync-pb
+sudo systemctl restart opensync-pb
+sudo systemctl status opensync-pb
+
+journalctl -u opensync-pb -f
+journalctl -u opensync-frontend -f
+```
+
+#### Service Logs
+
+```
+/var/log/opensync/pocketbase.log
+/var/log/opensync/frontend.log
+```
+
+### Option 2: Manual (tmux)
+
+```bash
+tmux new-session -d -s opensync
+tmux send-keys -t opensync "cd ~/opensync-pocketbase && npm run pocketbase" Enter
+tmux new-window -t opensync
+tmux send-keys -t opensync "cd ~/opensync-pocketbase && npm run dev:host" Enter
+tmux attach -t opensync
+```
+
+Detach: `Ctrl+B, D`. Reattach: `tmux attach -t opensync`.
+
+---
+
+## Traefik Configuration
+
+Create `opensync.yml` in your Traefik config directory:
 
 ```yaml
-# OpenSync - Dashboard for OpenCode/Claude Code sessions
 http:
   routers:
     opensync:
@@ -91,7 +116,7 @@ http:
           - url: "http://host.docker.internal:5173"
 ```
 
-**Important:** The `authelia-file` middleware must be defined elsewhere. It looks like:
+The `authelia-file` middleware should be defined as:
 
 ```yaml
 middlewares:
@@ -106,225 +131,225 @@ middlewares:
         - "Remote-Email"
 ```
 
-### 4. Verify Configuration
-
-Traefik auto-reloads config. Verify:
-
-```bash
-# Check Traefik loaded the config
-docker logs traefik 2>&1 | grep -i opensync
-
-# Test auth redirect (should get 302 to auth)
-curl -sI https://opensync.yourdomain.com | head -5
-```
-
-### 5. Start Services
-
-**Terminal 1 - Convex:**
-```bash
-cd ~/opensync && npx convex dev
-```
-
-**Terminal 2 - Vite:**
-```bash
-cd ~/opensync && npm run dev -- --host
-```
-
-### 6. Access
-
-Visit your OpenSync URL:
-1. Authelia prompts for login
-2. After login, redirects back to OpenSync dashboard
-3. Dashboard loads with your user context
-
 ---
 
-## Authentication Details
+## Authentication Flow
 
-### How It Works
-
-1. **Traefik** receives request to your OpenSync domain
-2. **authelia-file middleware** checks if user is authenticated
-3. If not → redirects to Authelia for login
-4. If yes → forwards request with headers:
+1. **Traefik** receives request at `opensync.yourdomain.com`
+2. **Authelia middleware** checks authentication
+3. If not logged in: redirects to Authelia login
+4. If logged in: forwards request with headers:
    - `Remote-Email`: user email
-   - `Remote-Name`: user display name
+   - `Remote-Name`: display name
    - `Remote-Groups`: user groups
-5. **Vite dev server** has `/api/me` endpoint that returns these headers
+5. **Vite** handles `/api/me` endpoint returning user from headers
 6. **React app** calls `/api/me` to get user info
-7. **Convex queries** use `DEFAULT_USER_EMAIL` env var for single-user mode
+7. **userSync** creates/updates Pocketbase user from Authelia identity
 
-### Single-User Mode
+---
 
-The Convex backend runs in single-user mode:
-- All queries use `DEFAULT_USER_EMAIL` environment variable
-- No per-request authentication to Convex (it cannot see Authelia headers)
-- API keys still work for sync plugins
+## File Structure
 
-**To change the default user email:**
-```bash
-npx convex env set DEFAULT_USER_EMAIL new@email.com
+```
+/opt/opensync/                    # Production install (or ~/opensync-pocketbase for dev)
+  bin/pocketbase                  # Pocketbase binary
+  pb_data/                        # SQLite database
+  pb_migrations/                  # Schema migrations
+  storage/                        # File uploads
+  src/                            # React frontend
+  server/                         # Sync API endpoints
+  .env.local                      # Environment variables
+  
+/var/log/opensync/               # Service logs (production)
+  pocketbase.log
+  frontend.log
+
+/etc/systemd/system/             # Systemd services (production)
+  opensync-pb.service
+  opensync-frontend.service
 ```
 
 ---
 
-## Key Files
+## Environment Variables
 
-```
-~/opensync/.env.local                              - Convex URL (auto-generated)
-~/opensync/.env.example                            - Example environment variables
-~/opensync/vite.config.ts                          - Vite config with /api/me endpoint
-~/opensync/src/main.tsx                            - React entry with AutheliaAuthProvider
-~/opensync/src/lib/auth.tsx                        - Authelia auth context (reads /api/me)
-~/opensync/src/App.tsx                             - Routes - / redirects to /dashboard
-```
-
----
-
-## Troubleshooting
-
-**403 from Vite**
-- Cause: `allowedHosts` not set
-- Fix: Add `server.allowedHosts: true` to `vite.config.ts`
-
-**404 from Traefik**
-- Cause: YAML parse error
-- Fix: Check backticks in Host rule; verify with `docker logs traefik`
-
-**No auth redirect**
-- Cause: Middleware not applied
-- Fix: Verify `authelia-file` in router middlewares list
-
-**Dashboard blank/black**
-- Cause: Convex errors
-- Fix: Check browser console; verify Convex dev server running
-
-**"Not authenticated" errors in Convex**
-- Cause: DEFAULT_USER_EMAIL not set
-- Fix: Run `npx convex env set DEFAULT_USER_EMAIL your@email.com`
-
-**Infinite loading**
-- Cause: `/api/me` failing
-- Fix: Check Vite logs; ensure running with `--host`
-
-### Check Logs
+Create `.env.local`:
 
 ```bash
-# Traefik
-docker logs traefik 2>&1 | tail -50
-
-# Browser console
-# F12 → Console tab
+VITE_POCKETBASE_URL=http://127.0.0.1:8090
 ```
 
----
-
-## Reverting to WorkOS Auth
-
-If you need to restore WorkOS authentication:
-
-1. Restore git files from upstream:
-   ```bash
-   git fetch upstream
-   git checkout upstream/main -- src/main.tsx src/lib/auth.tsx src/App.tsx src/pages/Login.tsx vite.config.ts
-   git checkout upstream/main -- convex/users.ts convex/analytics.ts convex/evals.ts convex/rag.ts convex/search.ts convex/sessions.ts
-   ```
-
-2. Remove authelia middleware from Traefik config
-
-3. Add WorkOS env vars to `.env.local`:
-   ```bash
-   VITE_WORKOS_CLIENT_ID=client_XXXXXXXXXX
-   VITE_REDIRECT_URI=https://opensync.yourdomain.com/callback
-   ```
-
-4. Configure redirect URI in WorkOS Dashboard
-
----
-
-## Running as a Service (Optional)
-
-For persistent running, use tmux:
+For production with Pocketbase superuser auth (sync API):
 
 ```bash
-# Start new session
-tmux new-session -d -s opensync
-
-# Start Convex in first window
-tmux send-keys -t opensync "cd ~/opensync && npx convex dev" Enter
-
-# Create second window for Vite
-tmux new-window -t opensync
-tmux send-keys -t opensync "cd ~/opensync && npm run dev -- --host" Enter
-
-# Attach to see logs
-tmux attach -t opensync
+VITE_POCKETBASE_URL=http://127.0.0.1:8090
+POCKETBASE_SUPERUSER_EMAIL=admin@localhost
+POCKETBASE_SUPERUSER_PASSWORD=your-secure-password
 ```
-
-Detach with `Ctrl+B, D`. Reattach with `tmux attach -t opensync`.
 
 ---
 
 ## Sync Plugin Setup
 
-The sync plugin sends OpenCode sessions to the dashboard in real-time.
+### Generate API Key
 
-### On Client Machines
+1. Log into OpenSync dashboard
+2. Go to Settings -> API Keys
+3. Click "Generate API Key"
+4. Copy the `os_...` key
 
-**Install plugin:**
+### Configure Plugin
+
+Create `~/.opensync/credentials.json`:
+
+```json
+{
+  "pocketbaseUrl": "https://opensync.yourdomain.com",
+  "apiKey": "os_your_api_key_here"
+}
+```
+
+### OpenCode Plugin
+
 ```bash
 npm install -g opencode-sync-plugin
 ```
 
-**Create credentials file** (`~/.opensync/credentials.json`):
+Add to `opencode.json`:
 ```json
 {
-  "convexUrl": "https://YOUR_DEPLOYMENT.convex.cloud",
-  "apiKey": "osk_YOUR_API_KEY"
+  "plugins": ["opencode-sync-plugin"]
 }
 ```
 
-**Add to opencode.json:**
+### Claude Code Plugin
+
+```bash
+npm install -g @anthropic/claude-code-sync
+```
+
+Add to settings:
 ```json
 {
-  "plugin": ["opencode-sync-plugin"]
+  "hooks": {
+    "onSessionEnd": "claude-code-sync sync"
+  }
 }
 ```
 
-**Verify setup:**
+### Verify Setup
+
 ```bash
 opencode-sync verify
 opencode-sync status
 ```
 
-### Generate API Key
+---
+
+## Database Management
+
+### Backup
 
 ```bash
-cd ~/opensync && npx convex run users:generateApiKey
+cd ~/opensync-pocketbase
+./scripts/backup.sh
+
+./scripts/backup.sh --list
+./scripts/backup.sh --quiet
 ```
 
-### Test Connectivity
+### Restore
 
 ```bash
-opencode-sync sync  # Creates test session
+./scripts/restore.sh --list
+
+./scripts/restore.sh backups/opensync_backup_20260125_120000.tar.gz
+```
+
+### Access Admin UI
+
+Development: `http://localhost:8090/_/`
+
+Production: Forward port or access via internal network:
+```bash
+ssh -L 8090:localhost:8090 your-server
+```
+Then visit `http://localhost:8090/_/`
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| 502 Bad Gateway | Services not running | `sudo systemctl start opensync-pb opensync-frontend` |
+| "Not authenticated" | Authelia headers missing | Check Traefik middleware config |
+| Empty dashboard | Pocketbase errors | Check browser console, verify Pocketbase running |
+| CORS errors | Vite proxy misconfigured | Check `vite.config.ts` proxy settings |
+| Sync fails | Invalid API key | Regenerate key in Settings, update credentials.json |
+| 403 from Vite | allowedHosts not set | Add `server.allowedHosts: true` to vite.config.ts |
+
+### Check Service Status
+
+```bash
+systemctl status opensync-pb
+systemctl status opensync-frontend
+```
+
+### View Logs
+
+```bash
+journalctl -u opensync-pb -f
+journalctl -u opensync-frontend -f
+
+tail -f /var/log/opensync/pocketbase.log
+tail -f /var/log/opensync/frontend.log
+```
+
+### Test Pocketbase Health
+
+```bash
+curl http://localhost:8090/api/health
+```
+
+### Test Auth Flow
+
+```bash
+curl -sI https://opensync.yourdomain.com | head -5
 ```
 
 ---
 
-## GitHub Repository
+## Upgrading
 
-| Remote | URL |
-|--------|-----|
-| origin (fork) | git@github.com:Skeptomenos/opensync.git |
-| upstream (original) | https://github.com/waynesutton/opensync.git |
-
-**Pull upstream updates:**
 ```bash
-git fetch upstream
-git merge upstream/main
+cd ~/opensync-pocketbase
+git pull origin feature/pocketbase-migration
+
+sudo ./deploy/install.sh --skip-user
 ```
 
-**Push changes to fork:**
+---
+
+## Uninstalling
+
 ```bash
-git push origin main
+sudo systemctl stop opensync-pb opensync-frontend
+sudo systemctl disable opensync-pb opensync-frontend
+sudo rm /etc/systemd/system/opensync-pb.service
+sudo rm /etc/systemd/system/opensync-frontend.service
+sudo systemctl daemon-reload
+
+sudo userdel opensync
+sudo rm -rf /opt/opensync
+sudo rm -rf /var/log/opensync
 ```
+
+---
+
+## Related Documentation
+
+- [OpenCode Plugin Setup](docs/OPENCODE-PLUGIN.md)
+- [Claude Code Plugin Setup](docs/CLAUDE-CODE-PLUGIN.md)
+- [Pocketbase Documentation](https://pocketbase.io/docs/)
+- [Migration Spec](ralph-wiggum/specs/POCKETBASE_MIGRATION.md)
