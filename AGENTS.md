@@ -32,12 +32,19 @@ AI coding session dashboard with self-hosted Pocketbase backend.
 ### Start Dev Environment
 
 ```bash
-# Terminal 1: Pocketbase
-./bin/pocketbase serve
+# Terminal 1: Pocketbase (with correct data/migrations directories)
+npm run pocketbase
+# Or manually: ./bin/pocketbase serve --dir=. --migrationsDir=./pb_migrations
 
 # Terminal 2: Vite
 npm install
-npm run dev -- --host
+npm run dev:host
+```
+
+### Run E2E Tests
+
+```bash
+npm run test:e2e
 ```
 
 ### Pocketbase Admin

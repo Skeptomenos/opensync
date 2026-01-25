@@ -66,12 +66,17 @@ interface BatchInput {
 // Pocketbase Client with Admin Auth
 // ============================================================================
 
-// Use the same Pocketbase URL as the frontend
-const POCKETBASE_URL = process.env.VITE_POCKETBASE_URL || "http://localhost:8090";
+function getPocketbaseUrl(): string {
+  return process.env.VITE_POCKETBASE_URL || "http://localhost:8090";
+}
 
-// Admin credentials for server-side operations
-const ADMIN_EMAIL = process.env.POCKETBASE_ADMIN_EMAIL || "admin@example.com";
-const ADMIN_PASSWORD = process.env.POCKETBASE_ADMIN_PASSWORD || "admin123456";
+function getAdminEmail(): string {
+  return process.env.POCKETBASE_ADMIN_EMAIL || "admin@example.com";
+}
+
+function getAdminPassword(): string {
+  return process.env.POCKETBASE_ADMIN_PASSWORD || "admin123456";
+}
 
 // Cached admin-authenticated client
 let adminClient: PocketBase | null = null;
@@ -92,11 +97,10 @@ async function getAdminClient(): Promise<PocketBase> {
 
   // Refresh if expired or not authenticated (1 hour buffer before token expiry)
   if (!adminClient || now >= adminAuthExpiry) {
-    const pb = new PocketBase(POCKETBASE_URL);
+    const pb = new PocketBase(getPocketbaseUrl());
 
     try {
-      // PocketBase v0.21+ uses _superusers collection for admin auth
-      await pb.collection("_superusers").authWithPassword(ADMIN_EMAIL, ADMIN_PASSWORD);
+      await pb.collection("_superusers").authWithPassword(getAdminEmail(), getAdminPassword());
       adminClient = pb;
       // Set expiry to 1 hour from now (tokens last longer but we refresh early)
       adminAuthExpiry = now + 60 * 60 * 1000;
